@@ -4,29 +4,51 @@
 |-------------------|-----------------------|
 | **Milestone**     | App Shell             |
 | **Status**        | Complete              |
-| **Files created** | 20                    |
 | **Build**         | Pass                  |
-| **QA**            | Pass                  |
+| **Lint**          | Pass                  |
 | **Next milestone**| Pending human approval|
 
 ## What Was Built
 
-- Next.js 16 project scaffold with Tailwind CSS 4 and TypeScript
-- Desktop shell layout: sidebar, top bar, and main desktop area
-- Window management: open, close, focus, and drag-to-move windows
-- Start menu with app listing (opens on click, closes on outside click)
-- Desktop icons with single-click selection and double-click to open
-- Dynamic route at `/app/[appId]` for future app pages
-- Mock data for 6 apps and 6 desktop icons
-- React context providers for app registry and window state
-- Utility function for unique ID generation
-- Global CSS with Tailwind import and overflow-hidden body
+- Next.js 16 project scaffold with TypeScript and Tailwind CSS 4
+- Left sidebar navigation with 8 routes: Dashboard, Companies, Contacts, Leads, Vendors, Jobs, Tasks, Settings
+- Sidebar uses Next.js Link with automatic active-state highlighting via `usePathname`
+- Light/dark mode toggle persisted to localStorage
+- Responsive layout: sidebar fixed left, main content scrollable
+
+### Dashboard (`/`)
+- 6 KPI cards (Revenue, Leads, Conversion Rate, Open Jobs, Response Time, Satisfaction)
+- Recent activity feed with avatars
+- Follow-ups due with priority badges
+- Pipeline overview with progress bars
+- Upcoming tasks with completion checkboxes
+
+### Companies (`/companies`)
+- Table with name, industry, location, status badge, contact count, revenue
+
+### Contacts (`/contacts`)
+- Table with name, email, phone, company, role, status badge
+
+### Leads (`/leads`)
+- Table with deal name, company, stage badge, value, probability bar, assignee
+
+### Vendors (`/vendors`)
+- Card grid with vendor info, contact details, star ratings, status badge
+
+### Jobs (`/jobs`)
+- Card grid with job title, company, location, type badge, applicant count, status badge
+
+### Tasks (`/tasks`)
+- Table with completion checkbox, title, due date, priority, assignee
+
+### Settings (`/settings`)
+- Profile form, dark mode toggle, notification preferences
 
 ## Key Deliverables
 
-- DesktopShell renders Sidebar + TopBar + DesktopArea + WindowManager
-- TopBar includes Start button, SystemTray (network/sound/battery indicators), and a live Clock
-- Windows are draggable by title bar, click-to-focus with z-index stacking
-- StartMenu appears above the Sidebar and dismisses on outside click
-- Desktop icons use a responsive CSS grid layout
+- 8 static routes all generating successfully
+- Sidebar navigation fully functional with client-side routing
+- Mock data for all pages — no database
+- Modern SaaS UI with consistent card/table patterns
+- Light and dark theme support throughout
 - Build compiles with zero TypeScript or lint errors

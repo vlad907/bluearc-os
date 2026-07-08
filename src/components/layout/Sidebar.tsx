@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { NAV_ITEMS } from "@/data/mock-data";
 import { classNames } from "@/lib/utils";
 import { useTheme } from "@/context/ThemeContext";
@@ -17,7 +19,7 @@ const icons: Record<string, React.ReactNode> = {
 };
 
 export default function Sidebar() {
-  const [active, setActive] = useState("dashboard");
+  const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -27,21 +29,24 @@ export default function Sidebar() {
         <span className="font-semibold text-gray-900 dark:text-white text-lg">Blue Arc</span>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setActive(item.id)}
-            className={classNames(
-              "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-              active === item.id
-                ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400"
-                : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-900"
-            )}
-          >
-            {icons[item.icon]}
-            <span>{item.label}</span>
-          </button>
-        ))}
+        {NAV_ITEMS.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.id}
+              href={item.href}
+              className={classNames(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400"
+                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-900"
+              )}
+            >
+              {icons[item.icon]}
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
       </nav>
       <div className="border-t border-gray-200 dark:border-gray-800 px-3 py-3">
         <div className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400">

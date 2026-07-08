@@ -47,3 +47,53 @@ export interface Task {
   completed: boolean;
   assignee: string;
 }
+
+export interface Company {
+  id: string;
+  name: string;
+  industry: string;
+  location: string;
+  status: "active" | "inactive" | "lead";
+  contacts: number;
+  revenue: string;
+}
+
+export interface Contact {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+  role: string;
+  status: "active" | "inactive";
+}
+
+export interface Lead {
+  id: string;
+  name: string;
+  company: string;
+  value: number;
+  stage: string;
+  probability: number;
+  assignedTo: string;
+}
+
+export interface Vendor {
+  id: string;
+  name: string;
+  category: string;
+  contact: string;
+  email: string;
+  status: "active" | "inactive" | "pending";
+  rating: number;
+}
+
+export interface JobItem {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  type: "full-time" | "part-time" | "contract" | "remote";
+  status: "open" | "closed" | "draft";
+  applicants: number;
+}
