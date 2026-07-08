@@ -1,6 +1,21 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:is(.dark *));
+
 body {
   margin: 0;
-  overflow: hidden;
+}
+
+@layer base {
+  :root {
+    --color-bg: #f9fafb;
+    --color-surface: #ffffff;
+    --color-border: #e5e7eb;
+  }
+
+  .dark {
+    --color-bg: #030712;
+    --color-surface: #111827;
+    --color-border: #1f2937;
+  }
 }

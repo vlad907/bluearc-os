@@ -1,34 +1,49 @@
-export interface App {
+export interface NavItem {
   id: string;
-  name: string;
-  icon: string;
-  description: string;
-  route: string;
-}
-
-export interface DesktopIconData {
-  id: string;
-  appId: string;
   label: string;
   icon: string;
-  position: { x: number; y: number };
+  href: string;
 }
 
-export interface WindowInstance {
+export interface KPIData {
   id: string;
-  appId: string;
-  title: string;
-  position: { x: number; y: number };
-  size: { width: number; height: number };
-  zIndex: number;
-  isMinimized: boolean;
+  label: string;
+  value: string | number;
+  change: number;
+  trend: "up" | "down";
+  icon: string;
 }
 
-export interface WindowContextType {
-  windows: WindowInstance[];
-  focusedWindowId: string | null;
-  openWindow: (appId: string) => void;
-  closeWindow: (windowId: string) => void;
-  focusWindow: (windowId: string) => void;
-  moveWindow: (windowId: string, pos: { x: number; y: number }) => void;
+export interface Activity {
+  id: string;
+  type: string;
+  description: string;
+  timestamp: string;
+  user: string;
+  avatar: string;
+}
+
+export interface FollowUp {
+  id: string;
+  contact: string;
+  company: string;
+  dueDate: string;
+  priority: "high" | "medium" | "low";
+}
+
+export interface PipelineStage {
+  id: string;
+  name: string;
+  value: number;
+  count: number;
+  color: string;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  dueDate: string;
+  priority: "high" | "medium" | "low";
+  completed: boolean;
+  assignee: string;
 }

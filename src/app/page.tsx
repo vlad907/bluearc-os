@@ -1,5 +1,5 @@
-import { DesktopShell } from "@/components/shell/DesktopShell";
+import Dashboard from "@/components/dashboard/Dashboard";
 
 export default function Home() {
-  return <DesktopShell />;
+  return <Dashboard />;
 }
