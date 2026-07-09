@@ -12,6 +12,16 @@ export interface KPIData {
   change: number;
   trend: "up" | "down";
   icon: string;
+  tone?: "indigo" | "emerald" | "amber" | "rose" | "sky" | "violet" | "slate";
+}
+
+export interface DashboardInsight {
+  id: string;
+  label: string;
+  value: string | number;
+  description: string;
+  href: string;
+  severity: "good" | "warning" | "critical" | "neutral";
 }
 
 export interface Activity {

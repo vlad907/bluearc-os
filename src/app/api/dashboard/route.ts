@@ -99,6 +99,10 @@ export async function GET(request: NextRequest) {
       openJobCount,
       pendingTaskCount,
       outreachCount,
+      overdueTaskCount,
+      scheduledOutreachCount,
+      biddingLeadCount,
+      staleLeadCount,
       leadValue,
       pipelineGroups,
       recentCompanies,
@@ -115,6 +119,30 @@ export async function GET(request: NextRequest) {
       prisma.job.count({ where: { organizationId, deletedAt: null, status: { in: ["open", "bidding", "in_progress"] } } }),
       prisma.task.count({ where: { organizationId, deletedAt: null, status: { in: ["todo", "in_progress"] } } }),
       prisma.outreach.count({ where: { organizationId, deletedAt: null } }),
+      prisma.task.count({
+        where: {
+          organizationId,
+          deletedAt: null,
+          status: { in: ["todo", "in_progress"] },
+          dueDate: { lt: new Date() },
+        },
+      }),
+      prisma.outreach.count({
+        where: {
+          organizationId,
+          deletedAt: null,
+          status: "scheduled",
+        },
+      }),
+      prisma.lead.count({ where: { organizationId, deletedAt: null, stage: { in: ["bidding", "submitted"] } } }),
+      prisma.lead.count({
+        where: {
+          organizationId,
+          deletedAt: null,
+          stage: { in: ["new", "evaluating", "bidding", "submitted"] },
+          updatedAt: { lt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) },
+        },
+      }),
       prisma.lead.aggregate({
         where: { organizationId, deletedAt: null },
         _sum: { value: true },
@@ -246,13 +274,47 @@ export async function GET(request: NextRequest) {
 
     return Response.json({
       kpis: [
-        { id: "companies", label: "Companies", value: companyCount, change: 0, trend: "up", icon: "Building2" },
-        { id: "contacts", label: "Contacts", value: contactCount, change: 0, trend: "up", icon: "Users" },
-        { id: "leads", label: "Active Leads", value: leadCount, change: 0, trend: "up", icon: "TrendingUp" },
-        { id: "pipeline", label: "Pipeline Value", value: totalPipelineValue, change: 0, trend: "up", icon: "DollarSign" },
-        { id: "jobs", label: "Open Jobs", value: openJobCount, change: 0, trend: "up", icon: "Briefcase" },
-        { id: "tasks", label: "Open Tasks", value: pendingTaskCount, change: 0, trend: "up", icon: "CheckSquare" },
-        { id: "outreach", label: "Outreach Items", value: outreachCount, change: 0, trend: "up", icon: "Mail" },
+        { id: "companies", label: "Companies", value: companyCount, change: 0, trend: "up", icon: "Building2", tone: "indigo" },
+        { id: "contacts", label: "Contacts", value: contactCount, change: 0, trend: "up", icon: "Users", tone: "sky" },
+        { id: "leads", label: "Active Leads", value: leadCount, change: 0, trend: "up", icon: "TrendingUp", tone: "violet" },
+        { id: "pipeline", label: "Pipeline Value", value: totalPipelineValue, change: 0, trend: "up", icon: "DollarSign", tone: "emerald" },
+        { id: "jobs", label: "Open Jobs", value: openJobCount, change: 0, trend: "up", icon: "Briefcase", tone: "amber" },
+        { id: "tasks", label: "Open Tasks", value: pendingTaskCount, change: 0, trend: "up", icon: "CheckSquare", tone: overdueTaskCount > 0 ? "rose" : "slate" },
+        { id: "outreach", label: "Outreach Items", value: outreachCount, change: 0, trend: "up", icon: "Mail", tone: "indigo" },
+      ],
+      insights: [
+        {
+          id: "overdue-tasks",
+          label: "Overdue Tasks",
+          value: overdueTaskCount,
+          description: overdueTaskCount > 0 ? "Needs cleanup before work piles up" : "No overdue tasks",
+          href: "/tasks",
+          severity: overdueTaskCount > 0 ? "critical" : "good",
+        },
+        {
+          id: "scheduled-outreach",
+          label: "Scheduled Outreach",
+          value: scheduledOutreachCount,
+          description: scheduledOutreachCount > 0 ? "Queued customer touches" : "No outreach scheduled",
+          href: "/outreach",
+          severity: scheduledOutreachCount > 0 ? "neutral" : "warning",
+        },
+        {
+          id: "active-bids",
+          label: "Bids In Flight",
+          value: biddingLeadCount,
+          description: biddingLeadCount > 0 ? "Leads in bidding/submitted stages" : "No active bids",
+          href: "/leads",
+          severity: biddingLeadCount > 0 ? "neutral" : "warning",
+        },
+        {
+          id: "stale-leads",
+          label: "Stale Leads",
+          value: staleLeadCount,
+          description: staleLeadCount > 0 ? "Updated more than 14 days ago" : "Pipeline is fresh",
+          href: "/leads",
+          severity: staleLeadCount > 0 ? "warning" : "good",
+        },
       ],
       recentActivity,
       followUps: followUpTasks.map((task) => ({
