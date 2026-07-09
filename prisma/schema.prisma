@@ -54,6 +54,29 @@ enum ContactStatus {
   inactive
 }
 
+enum LeadStage {
+  new
+  evaluating
+  bidding
+  submitted
+  won
+  lost
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  done
+  cancelled
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+  urgent
+}
+
 // ─── MODELS ────────────────────────────────────────────────────────────────────
 
 model Organization {
@@ -67,6 +90,8 @@ model Organization {
 
   companies Company[]
   contacts  Contact[]
+  leads     Lead[]
+  tasks     Task[]
 
   @@map("organizations")
 }
@@ -90,6 +115,7 @@ model Company {
 
   organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   contacts         Contact[]
+  leads            Lead[]
 
   @@index([organizationId])
   @@index([status])
@@ -115,8 +141,63 @@ model Contact {
 
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   company        Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  leads          Lead[]
 
   @@index([organizationId])
   @@index([companyId])
   @@map("contacts")
+}
+
+model Lead {
+  id             String      @id @default(uuid())
+  organizationId String
+  contactId      String?
+  companyId      String?
+  title          String
+  stage          LeadStage   @default(new)
+  value          Decimal?
+  currency       String      @default("USD")
+  probability    Int?
+  source         String?
+  assignedToId   String?
+  expectedClose  DateTime?
+  metadata       Json?
+  deletedAt      DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact        Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company        Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([contactId])
+  @@index([companyId])
+  @@index([stage])
+  @@map("leads")
+}
+
+model Task {
+  id             String       @id @default(uuid())
+  organizationId String
+  title          String
+  description    String?
+  status         TaskStatus   @default(todo)
+  priority       TaskPriority @default(medium)
+  dueDate        DateTime?
+  completedAt    DateTime?
+  assignedToId   String?
+  entityType     String?
+  entityId       String?
+  metadata       Json?
+  deletedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([entityType, entityId])
+  @@index([status])
+  @@map("tasks")
 }
