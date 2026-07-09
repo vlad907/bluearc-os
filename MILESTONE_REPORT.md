@@ -143,7 +143,7 @@ All findings are architectural recommendations for future implementation. None b
 
 ---
 
-# Milestone 2B Progress: Prisma Schema and Company CRUD
+# Milestone 2B Progress: Prisma Schema and Core CRUD APIs
 
 | Item              | Status                         |
 |-------------------|--------------------------------|
@@ -160,26 +160,31 @@ All findings are architectural recommendations for future implementation. None b
 - Core tenant and CRM schema: Organization, Company, Contact, Lead, Task, Vendor, Job, Outreach.
 - PostgreSQL Prisma adapter wiring through `@prisma/adapter-pg`.
 - Prisma client singleton for server-side database access.
-- Basic Company CRUD route handlers:
-  - `GET /api/companies`
-  - `POST /api/companies`
-  - `GET /api/companies/[id]`
-  - `PATCH /api/companies/[id]`
-  - `DELETE /api/companies/[id]` soft delete
+- Basic CRUD route handlers for:
+  - Companies
+  - Contacts
+  - Leads
+  - Tasks
+  - Vendors
+  - Jobs
+  - Outreach
+- All CRUD APIs require explicit `organizationId` via `x-organization-id`, `organizationId` query parameter, or JSON body where applicable.
+- All CRUD APIs filter out soft-deleted rows and use soft delete via `deletedAt`.
+- Route handlers validate required fields, enum values, nullable fields, dates, and numeric fields before database writes.
 
 ## Validation Results
 
 - `npx prisma generate` — pass
 - `npx prisma validate` — pass
-- `npm run lint` — pass
+- `npm run lint` — pass after core CRUD API expansion
 - `npm run build` — pass
 
 ## Remaining Before Milestone 2 Completion
 
 - Replace local `.env` `DATABASE_URL` with a real PostgreSQL/Supabase connection string.
 - Run seed against a real PostgreSQL/Supabase database.
-- Smoke-test Company CRUD against the migrated database.
-- Stop for human approval before expanding API routes.
+- Smoke-test core CRUD routes against the migrated database.
+- Add auth-backed organization resolution before production use.
 
 ## Latest Database Workflow Update
 
