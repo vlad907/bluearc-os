@@ -10,6 +10,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "leads", label: "Leads", icon: "TrendingUp", href: "/leads" },
   { id: "vendors", label: "Vendors", icon: "Truck", href: "/vendors" },
   { id: "jobs", label: "Jobs", icon: "Briefcase", href: "/jobs" },
+  { id: "outreach", label: "Outreach", icon: "Mail", href: "/outreach" },
   { id: "tasks", label: "Tasks", icon: "CheckSquare", href: "/tasks" },
   { id: "settings", label: "Settings", icon: "Settings", href: "/settings" },
 ];
