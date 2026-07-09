@@ -8,3 +8,115 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// ─── ENUMS ─────────────────────────────────────────────────────────────────────
+
+enum OrganizationPlan {
+  free
+  pro
+  enterprise
+}
+
+enum CompanyRelationshipType {
+  customer
+  vendor
+  msp
+  property_manager
+  contractor
+  partner
+}
+
+enum CompanySize {
+  startup
+  smb
+  mid
+  enterprise
+}
+
+enum CompanyStatus {
+  prospect
+  active
+  inactive
+  churned
+}
+
+enum ContactRole {
+  decision_maker
+  influencer
+  user
+  admin
+  site_contact
+  dispatcher
+}
+
+enum ContactStatus {
+  active
+  inactive
+}
+
+// ─── MODELS ────────────────────────────────────────────────────────────────────
+
+model Organization {
+  id        String             @id @default(uuid())
+  name      String
+  slug      String             @unique
+  plan      OrganizationPlan   @default(free)
+  settings  Json?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  companies Company[]
+  contacts  Contact[]
+
+  @@map("organizations")
+}
+
+model Company {
+  id               String                   @id @default(uuid())
+  organizationId   String
+  name             String
+  relationshipType CompanyRelationshipType  @default(customer)
+  domain           String?
+  industry         String?
+  size             CompanySize?
+  status           CompanyStatus            @default(prospect)
+  website          String?
+  phone            String?
+  address          Json?
+  metadata         Json?
+  deletedAt        DateTime?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contacts         Contact[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("companies")
+}
+
+model Contact {
+  id             String         @id @default(uuid())
+  organizationId String
+  companyId      String?
+  firstName      String
+  lastName       String?
+  email          String?
+  phone          String?
+  title          String?
+  role           ContactRole?
+  source         String?
+  status         ContactStatus  @default(active)
+  metadata       Json?
+  deletedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company        Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([companyId])
+  @@map("contacts")
+}
