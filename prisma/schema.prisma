@@ -77,6 +77,28 @@ enum TaskPriority {
   urgent
 }
 
+enum VendorStatus {
+  active
+  inactive
+  blacklisted
+}
+
+enum JobStatus {
+  open
+  bidding
+  awarded
+  in_progress
+  completed
+  cancelled
+}
+
+enum JobPriority {
+  low
+  medium
+  high
+  urgent
+}
+
 // ─── MODELS ────────────────────────────────────────────────────────────────────
 
 model Organization {
@@ -92,6 +114,8 @@ model Organization {
   contacts  Contact[]
   leads     Lead[]
   tasks     Task[]
+  vendors   Vendor[]
+  jobs      Job[]
 
   @@map("organizations")
 }
@@ -116,6 +140,8 @@ model Company {
   organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   contacts         Contact[]
   leads            Lead[]
+  vendors          Vendor[]
+  jobs             Job[]
 
   @@index([organizationId])
   @@index([status])
@@ -142,6 +168,7 @@ model Contact {
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   company        Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
   leads          Lead[]
+  jobs           Job[]
 
   @@index([organizationId])
   @@index([companyId])
@@ -169,6 +196,7 @@ model Lead {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   contact        Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
   company        Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  jobs           Job[]
 
   @@index([organizationId])
   @@index([contactId])
@@ -200,4 +228,70 @@ model Task {
   @@index([entityType, entityId])
   @@index([status])
   @@map("tasks")
+}
+
+model Vendor {
+  id             String       @id @default(uuid())
+  organizationId String
+  companyId      String?
+  name           String
+  category       String?
+  contactName    String?
+  email          String?
+  phone          String?
+  website        String?
+  status         VendorStatus @default(active)
+  rating         Int?
+  notes          String?
+  metadata       Json?
+  deletedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company        Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  jobs           Job[]
+
+  @@index([organizationId])
+  @@index([companyId])
+  @@index([status])
+  @@map("vendors")
+}
+
+model Job {
+  id             String       @id @default(uuid())
+  organizationId String
+  companyId      String?
+  contactId      String?
+  vendorId       String?
+  leadId         String?
+  title          String
+  description    String?
+  status         JobStatus    @default(open)
+  priority       JobPriority  @default(medium)
+  type           String?
+  siteAddress    Json?
+  postedDate     DateTime?
+  dueDate        DateTime?
+  bidDeadline    DateTime?
+  estimatedValue Decimal?
+  assignedToId   String?
+  metadata       Json?
+  deletedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company        Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact        Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  vendor         Vendor?      @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  lead           Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([vendorId])
+  @@index([leadId])
+  @@index([status])
+  @@map("jobs")
 }
