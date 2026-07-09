@@ -101,6 +101,10 @@ export async function POST(request: Request) {
       return jsonError("Workspace slug is already in use", 409);
     }
 
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") {
+      return jsonError("Database tables are missing. Run `npm run db:migrate`, then retry workspace creation.", 503);
+    }
+
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "ECONNREFUSED") {
       return jsonError("PostgreSQL refused the connection. Confirm Supabase is running/reachable and DATABASE_URL points to the correct host and port.", 503);
     }

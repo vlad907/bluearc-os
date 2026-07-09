@@ -64,6 +64,9 @@ export default function SettingsPage() {
           <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
             Create or select the workspace used by the app. This replaces manually hunting for an organization ID during development.
           </p>
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
+            Before creating a workspace, start PostgreSQL and run migrations: <code>npm run db:dev:up</code> then <code>npm run db:migrate</code>.
+          </div>
           <form onSubmit={handleCreateWorkspace} className="mb-5 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-4">
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_auto] gap-3">
               <div>
