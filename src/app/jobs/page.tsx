@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import { useOrganization } from "@/context/OrganizationContext";
 import { classNames } from "@/lib/utils";
 
 type JobStatus = "open" | "bidding" | "awarded" | "in_progress" | "completed" | "cancelled";
@@ -25,8 +26,6 @@ type JobForm = {
   siteAddress: string;
   estimatedValue: string;
 };
-
-const organizationStorageKey = "bluearc.organizationId";
 
 const statusStyles: Record<JobStatus, string> = {
   open: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
@@ -86,20 +85,12 @@ function formatValue(value: Job["estimatedValue"]) {
 }
 
 export default function JobsPage() {
-  const [organizationId, setOrganizationId] = useState(() =>
-    typeof window === "undefined" ? "" : localStorage.getItem(organizationStorageKey) ?? "",
-  );
+  const { organizationId, setOrganizationId } = useOrganization();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [form, setForm] = useState<JobForm>(initialForm);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (organizationId) {
-      localStorage.setItem(organizationStorageKey, organizationId);
-    }
-  }, [organizationId]);
 
   useEffect(() => {
     if (!organizationId) {

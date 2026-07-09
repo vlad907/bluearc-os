@@ -4,9 +4,8 @@ import type { FormEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
 
 import PageHeader from "@/components/layout/PageHeader";
+import { useOrganization } from "@/context/OrganizationContext";
 import { classNames } from "@/lib/utils";
-
-const ORGANIZATION_STORAGE_KEY = "bluearc.organizationId";
 
 const statusStyles: Record<string, string> = {
   prospect: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
@@ -55,23 +54,13 @@ async function readApiError(response: Response) {
 }
 
 export default function CompaniesPage() {
-  const [organizationId, setOrganizationId] = useState(() =>
-    typeof window === "undefined" ? "" : localStorage.getItem(ORGANIZATION_STORAGE_KEY) ?? "",
-  );
+  const { organizationId, setOrganizationId } = useOrganization();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [form, setForm] = useState<CompanyForm>(emptyForm);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (organizationId) {
-      localStorage.setItem(ORGANIZATION_STORAGE_KEY, organizationId);
-    } else {
-      localStorage.removeItem(ORGANIZATION_STORAGE_KEY);
-    }
-  }, [organizationId]);
 
   const fetchCompanies = useCallback(async () => {
     if (!organizationId.trim()) {

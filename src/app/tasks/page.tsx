@@ -2,9 +2,8 @@
 
 import React, { FormEvent, useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import { useOrganization } from "@/context/OrganizationContext";
 import { getPriorityColor } from "@/lib/utils";
-
-const ORGANIZATION_STORAGE_KEY = "bluearc.organizationId";
 
 const taskStatuses = ["todo", "in_progress", "done", "cancelled"] as const;
 const taskPriorities = ["low", "medium", "high", "urgent"] as const;
@@ -54,13 +53,7 @@ function getStatusLabel(status: TaskStatus) {
 }
 
 export default function TasksPage() {
-  const [organizationId, setOrganizationId] = useState(() => {
-    if (typeof window === "undefined") {
-      return "";
-    }
-
-    return window.localStorage.getItem(ORGANIZATION_STORAGE_KEY) ?? "";
-  });
+  const { organizationId, setOrganizationId } = useOrganization();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -70,14 +63,6 @@ export default function TasksPage() {
   const [status, setStatus] = useState<TaskStatus>("todo");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [dueDate, setDueDate] = useState("");
-
-  useEffect(() => {
-    if (organizationId) {
-      window.localStorage.setItem(ORGANIZATION_STORAGE_KEY, organizationId);
-    } else {
-      window.localStorage.removeItem(ORGANIZATION_STORAGE_KEY);
-    }
-  }, [organizationId]);
 
   useEffect(() => {
     if (!organizationId) {

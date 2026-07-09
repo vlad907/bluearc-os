@@ -2,9 +2,8 @@
 
 import React, { FormEvent, useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import { useOrganization } from "@/context/OrganizationContext";
 import { formatCurrency } from "@/lib/utils";
-
-const ORGANIZATION_STORAGE_KEY = "bluearc.organizationId";
 
 const leadStages = ["new", "evaluating", "bidding", "submitted", "won", "lost"] as const;
 
@@ -67,13 +66,7 @@ function formatDate(value: string | null) {
 }
 
 export default function LeadsPage() {
-  const [organizationId, setOrganizationId] = useState(() => {
-    if (typeof window === "undefined") {
-      return "";
-    }
-
-    return window.localStorage.getItem(ORGANIZATION_STORAGE_KEY) ?? "";
-  });
+  const { organizationId, setOrganizationId } = useOrganization();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -84,14 +77,6 @@ export default function LeadsPage() {
   const [value, setValue] = useState("");
   const [probability, setProbability] = useState("");
   const [expectedClose, setExpectedClose] = useState("");
-
-  useEffect(() => {
-    if (organizationId) {
-      window.localStorage.setItem(ORGANIZATION_STORAGE_KEY, organizationId);
-    } else {
-      window.localStorage.removeItem(ORGANIZATION_STORAGE_KEY);
-    }
-  }, [organizationId]);
 
   useEffect(() => {
     if (!organizationId) {

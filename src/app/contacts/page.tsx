@@ -4,9 +4,8 @@ import type { FormEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
 
 import PageHeader from "@/components/layout/PageHeader";
+import { useOrganization } from "@/context/OrganizationContext";
 import { classNames } from "@/lib/utils";
-
-const ORGANIZATION_STORAGE_KEY = "bluearc.organizationId";
 
 const statusStyles: Record<string, string> = {
   active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
@@ -64,23 +63,13 @@ function getContactName(contact: Contact) {
 }
 
 export default function ContactsPage() {
-  const [organizationId, setOrganizationId] = useState(() =>
-    typeof window === "undefined" ? "" : localStorage.getItem(ORGANIZATION_STORAGE_KEY) ?? "",
-  );
+  const { organizationId, setOrganizationId } = useOrganization();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [form, setForm] = useState<ContactForm>(emptyForm);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (organizationId) {
-      localStorage.setItem(ORGANIZATION_STORAGE_KEY, organizationId);
-    } else {
-      localStorage.removeItem(ORGANIZATION_STORAGE_KEY);
-    }
-  }, [organizationId]);
 
   const fetchContacts = useCallback(async () => {
     if (!organizationId.trim()) {

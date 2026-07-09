@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import { useOrganization } from "@/context/OrganizationContext";
 import { classNames } from "@/lib/utils";
 
 type VendorStatus = "active" | "inactive" | "blacklisted";
@@ -23,8 +24,6 @@ type VendorForm = {
   email: string;
   status: VendorStatus;
 };
-
-const organizationStorageKey = "bluearc.organizationId";
 
 const statusStyles: Record<VendorStatus, string> = {
   active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
@@ -55,20 +54,12 @@ function getErrorMessage(payload: unknown, fallback: string) {
 }
 
 export default function VendorsPage() {
-  const [organizationId, setOrganizationId] = useState(() =>
-    typeof window === "undefined" ? "" : localStorage.getItem(organizationStorageKey) ?? "",
-  );
+  const { organizationId, setOrganizationId } = useOrganization();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [form, setForm] = useState<VendorForm>(initialForm);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (organizationId) {
-      localStorage.setItem(organizationStorageKey, organizationId);
-    }
-  }, [organizationId]);
 
   useEffect(() => {
     if (!organizationId) {
