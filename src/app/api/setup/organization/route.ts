@@ -8,6 +8,26 @@ type CreateOrganizationBody = {
   slug?: unknown;
 };
 
+function getDatabaseConfigError() {
+  const databaseUrl = process.env.DATABASE_URL;
+
+  if (!databaseUrl) {
+    return "DATABASE_URL is missing. Set it to a PostgreSQL/Supabase connection string before creating a workspace.";
+  }
+
+  try {
+    const parsedUrl = new URL(databaseUrl);
+
+    if (parsedUrl.protocol !== "postgresql:" && parsedUrl.protocol !== "postgres:") {
+      return "DATABASE_URL must use PostgreSQL. Replace the current local value with a postgresql:// or postgres:// Supabase connection string.";
+    }
+  } catch {
+    return "DATABASE_URL is not a valid connection string.";
+  }
+
+  return null;
+}
+
 function jsonError(message: string, status: number) {
   return Response.json({ error: message }, { status });
 }
@@ -30,6 +50,12 @@ function slugify(value: string) {
 }
 
 export async function POST(request: Request) {
+  const databaseConfigError = getDatabaseConfigError();
+
+  if (databaseConfigError) {
+    return jsonError(databaseConfigError, 503);
+  }
+
   const body = await readJsonBody(request);
 
   if (!body) {
@@ -73,6 +99,10 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return jsonError("Workspace slug is already in use", 409);
+    }
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "ECONNREFUSED") {
+      return jsonError("PostgreSQL refused the connection. Confirm Supabase is running/reachable and DATABASE_URL points to the correct host and port.", 503);
     }
 
     console.error(error);

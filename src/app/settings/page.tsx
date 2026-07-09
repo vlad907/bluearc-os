@@ -143,7 +143,7 @@ export default function SettingsPage() {
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Database Setup</h3>
           <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
-            Use PostgreSQL/Supabase only. The seed script refuses SQLite URLs.
+            Use PostgreSQL/Supabase only. `file:./dev.db` and SQLite URLs are not supported by the current Prisma adapter.
           </p>
           <div className="space-y-2">
             {[
