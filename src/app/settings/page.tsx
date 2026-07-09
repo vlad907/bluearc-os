@@ -148,6 +148,7 @@ export default function SettingsPage() {
           <div className="space-y-2">
             {[
               { command: "cp .env.example .env", desc: "Create local environment config" },
+              { command: "npm run db:dev:up", desc: "Start local PostgreSQL with Docker" },
               { command: "npm run db:migrate", desc: "Apply Prisma migration to PostgreSQL" },
               { command: "npm run db:seed", desc: "Optional: seed demo CRM data" },
               { command: "npm run dev", desc: "Run the app, then create a workspace from this Settings page" },

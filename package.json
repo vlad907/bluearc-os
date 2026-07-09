@@ -11,7 +11,10 @@
     "db:validate": "prisma validate",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "node prisma/seed.mjs",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:dev:up": "docker compose up -d postgres",
+    "db:dev:down": "docker compose down",
+    "db:dev:reset": "docker compose down -v && docker compose up -d postgres && prisma migrate deploy && node prisma/seed.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
