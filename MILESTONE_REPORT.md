@@ -176,8 +176,14 @@ All findings are architectural recommendations for future implementation. None b
 
 ## Remaining Before Milestone 2 Completion
 
-- Create and review first PostgreSQL/Supabase migration.
-- Add seed data for Organization, Companies, Contacts, Leads, Tasks, Vendors, Jobs, and Outreach.
+- Replace local `.env` `DATABASE_URL` with a real PostgreSQL/Supabase connection string.
 - Run seed against a real PostgreSQL/Supabase database.
 - Smoke-test Company CRUD against the migrated database.
 - Stop for human approval before expanding API routes.
+
+## Latest Database Workflow Update
+
+- Added initial PostgreSQL migration artifact under `prisma/migrations`.
+- Added guarded seed script for Organization, Companies, Contacts, Leads, Tasks, Vendors, Jobs, and Outreach.
+- Added package scripts for Prisma generate, validate, migrate, seed, and studio.
+- Confirmed seed script refuses non-PostgreSQL `DATABASE_URL` values.
