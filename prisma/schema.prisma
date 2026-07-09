@@ -99,6 +99,33 @@ enum JobPriority {
   urgent
 }
 
+enum OutreachChannel {
+  email
+  phone
+  sms
+  linkedin
+  meeting
+  note
+  other
+}
+
+enum OutreachDirection {
+  inbound
+  outbound
+}
+
+enum OutreachStatus {
+  draft
+  scheduled
+  sent
+  delivered
+  opened
+  replied
+  bounced
+  failed
+  cancelled
+}
+
 // ─── MODELS ────────────────────────────────────────────────────────────────────
 
 model Organization {
@@ -116,6 +143,7 @@ model Organization {
   tasks     Task[]
   vendors   Vendor[]
   jobs      Job[]
+  outreach  Outreach[]
 
   @@map("organizations")
 }
@@ -142,6 +170,7 @@ model Company {
   leads            Lead[]
   vendors          Vendor[]
   jobs             Job[]
+  outreach         Outreach[]
 
   @@index([organizationId])
   @@index([status])
@@ -169,6 +198,7 @@ model Contact {
   company        Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
   leads          Lead[]
   jobs           Job[]
+  outreach       Outreach[]
 
   @@index([organizationId])
   @@index([companyId])
@@ -197,6 +227,7 @@ model Lead {
   contact        Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
   company        Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
   jobs           Job[]
+  outreach       Outreach[]
 
   @@index([organizationId])
   @@index([contactId])
@@ -286,6 +317,7 @@ model Job {
   contact        Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
   vendor         Vendor?      @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   lead           Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  outreach       Outreach[]
 
   @@index([organizationId])
   @@index([companyId])
@@ -294,4 +326,43 @@ model Job {
   @@index([leadId])
   @@index([status])
   @@map("jobs")
+}
+
+model Outreach {
+  id             String             @id @default(uuid())
+  organizationId String
+  companyId      String?
+  contactId      String?
+  leadId         String?
+  jobId          String?
+  channel        OutreachChannel    @default(email)
+  direction      OutreachDirection  @default(outbound)
+  status         OutreachStatus     @default(draft)
+  subject        String?
+  body           String?
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  deliveredAt    DateTime?
+  openedAt       DateTime?
+  repliedAt      DateTime?
+  metadata       Json?
+  deletedAt      DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company        Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact        Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  lead           Lead?              @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  job            Job?               @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([leadId])
+  @@index([jobId])
+  @@index([channel])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("outreach")
 }

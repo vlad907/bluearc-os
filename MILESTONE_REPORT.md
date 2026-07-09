@@ -140,3 +140,44 @@
 - IntegrationConnection tokens need encryption spec
 
 All findings are architectural recommendations for future implementation. None block Milestone 2A completion.
+
+---
+
+# Milestone 2B Progress: Prisma Schema and Company CRUD
+
+| Item              | Status                         |
+|-------------------|--------------------------------|
+| **Milestone**     | CRM Database                   |
+| **Status**        | In Progress                    |
+| **Schema**        | Core CRM + field-service ready |
+| **Validation**    | Pass                           |
+| **Build/Lint**    | Pass                           |
+| **Next step**     | Migration + seed data          |
+
+## What Was Built
+
+- Prisma PostgreSQL foundation using Prisma 7 configuration.
+- Core tenant and CRM schema: Organization, Company, Contact, Lead, Task, Vendor, Job, Outreach.
+- PostgreSQL Prisma adapter wiring through `@prisma/adapter-pg`.
+- Prisma client singleton for server-side database access.
+- Basic Company CRUD route handlers:
+  - `GET /api/companies`
+  - `POST /api/companies`
+  - `GET /api/companies/[id]`
+  - `PATCH /api/companies/[id]`
+  - `DELETE /api/companies/[id]` soft delete
+
+## Validation Results
+
+- `npx prisma generate` — pass
+- `npx prisma validate` — pass
+- `npm run lint` — pass
+- `npm run build` — pass
+
+## Remaining Before Milestone 2 Completion
+
+- Create and review first PostgreSQL/Supabase migration.
+- Add seed data for Organization, Companies, Contacts, Leads, Tasks, Vendors, Jobs, and Outreach.
+- Run seed against a real PostgreSQL/Supabase database.
+- Smoke-test Company CRUD against the migrated database.
+- Stop for human approval before expanding API routes.
