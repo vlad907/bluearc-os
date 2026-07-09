@@ -13,6 +13,9 @@ export default function PipelineOverview({ stages }: { stages: PipelineStage[] }
         <h3 className="font-semibold text-gray-900 dark:text-white">Pipeline Overview</h3>
       </div>
       <div className="px-5 py-4 space-y-4">
+        {stages.length === 0 && (
+          <div className="text-sm text-gray-500 dark:text-gray-400">No pipeline data yet.</div>
+        )}
         {stages.map((stage) => (
           <div key={stage.id}>
             <div className="flex items-center justify-between mb-1.5">
@@ -28,7 +31,7 @@ export default function PipelineOverview({ stages }: { stages: PipelineStage[] }
             <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2">
               <div
                 className={`${stage.color} h-2 rounded-full transition-all`}
-                style={{ width: `${(stage.value / total) * 100}%` }}
+                style={{ width: `${total > 0 ? (stage.value / total) * 100 : 0}%` }}
               />
             </div>
           </div>

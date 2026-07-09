@@ -28,7 +28,7 @@ export interface FollowUp {
   contact: string;
   company: string;
   dueDate: string;
-  priority: "high" | "medium" | "low";
+  priority: "urgent" | "high" | "medium" | "low";
 }
 
 export interface PipelineStage {
@@ -43,7 +43,7 @@ export interface Task {
   id: string;
   title: string;
   dueDate: string;
-  priority: "high" | "medium" | "low";
+  priority: "urgent" | "high" | "medium" | "low";
   completed: boolean;
   assignee: string;
 }

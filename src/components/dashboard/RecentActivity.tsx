@@ -10,6 +10,9 @@ export default function RecentActivity({ activities }: { activities: Activity[] 
         <h3 className="font-semibold text-gray-900 dark:text-white">Recent Activity</h3>
       </div>
       <div className="divide-y divide-gray-100 dark:divide-gray-800">
+        {activities.length === 0 && (
+          <div className="px-5 py-6 text-sm text-gray-500 dark:text-gray-400">No recent activity yet.</div>
+        )}
         {activities.map((activity) => (
           <div key={activity.id} className="flex items-start gap-3 px-5 py-3.5">
             <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-xs font-medium text-indigo-600 dark:text-indigo-400 shrink-0">

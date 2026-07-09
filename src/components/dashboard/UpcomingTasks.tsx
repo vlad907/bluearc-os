@@ -11,6 +11,9 @@ export default function UpcomingTasks({ tasks }: { tasks: Task[] }) {
         <h3 className="font-semibold text-gray-900 dark:text-white">Upcoming Tasks</h3>
       </div>
       <div className="divide-y divide-gray-100 dark:divide-gray-800">
+        {tasks.length === 0 && (
+          <div className="px-5 py-6 text-sm text-gray-500 dark:text-gray-400">No tasks yet.</div>
+        )}
         {tasks.map((task) => (
           <div key={task.id} className="flex items-start gap-3 px-5 py-3.5">
             <div className={`mt-0.5 w-4 h-4 rounded border-2 shrink-0 flex items-center justify-center ${
