@@ -2,10 +2,12 @@
 
 import React from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import { useOrganization } from "@/context/OrganizationContext";
 import { useTheme } from "@/context/ThemeContext";
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
+  const { organizationId, setOrganizationId } = useOrganization();
 
   return (
     <div className="p-6 lg:p-8">
@@ -13,27 +15,35 @@ export default function SettingsPage() {
         title="Settings"
         description="Manage your account and application preferences."
       />
-      <div className="space-y-6 max-w-2xl">
+      <div className="space-y-6 max-w-3xl">
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Profile</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">Your personal information and avatar.</p>
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-lg font-medium">VA</div>
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Development Organization</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
+            Temporary tenant selector used by CRUD pages until auth-backed organization resolution is implemented.
+          </p>
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3">
             <div>
-              <p className="font-medium text-gray-900 dark:text-white">Vlad A.</p>
-              <p className="text-sm text-gray-500 dark:text-gray-500">vlad@bluearc.io</p>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Organization ID
+              </label>
+              <input
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                placeholder="Paste seeded organization UUID"
+                value={organizationId}
+                onChange={(event) => setOrganizationId(event.target.value)}
+              />
             </div>
+            <button
+              className="self-end px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+              disabled={!organizationId}
+              onClick={() => setOrganizationId("")}
+            >
+              Clear
+            </button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Full Name</label>
-              <input type="text" defaultValue="Vlad A." className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Email</label>
-              <input type="email" defaultValue="vlad@bluearc.io" className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
-            </div>
-          </div>
+          <p className="mt-3 text-xs text-gray-500 dark:text-gray-500">
+            This value is saved in browser storage and sent as `x-organization-id` by the current API-backed pages.
+          </p>
         </div>
 
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
@@ -54,35 +64,25 @@ export default function SettingsPage() {
         </div>
 
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Notifications</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">Configure your notification preferences.</p>
-          <div className="space-y-3">
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Database Setup</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
+            Use PostgreSQL/Supabase only. The seed script refuses SQLite URLs.
+          </p>
+          <div className="space-y-2">
             {[
-              { label: "Email notifications", desc: "Receive email updates about your activity" },
-              { label: "Pipeline updates", desc: "Get notified when deals change stage" },
-              { label: "Task reminders", desc: "Daily reminders for overdue tasks" },
-              { label: "Weekly digest", desc: "Weekly summary of your CRM activity" },
+              { command: "cp .env.example .env", desc: "Create local environment config" },
+              { command: "npm run db:migrate", desc: "Apply Prisma migration to PostgreSQL" },
+              { command: "npm run db:seed", desc: "Seed organization and CRM demo data" },
+              { command: "npm run dev", desc: "Run the app and use the seeded organization ID" },
             ].map((item) => (
-              <div key={item.label} className="flex items-center justify-between py-1">
+              <div key={item.command} className="flex items-center justify-between gap-4 py-2">
                 <div>
-                  <p className="text-sm text-gray-900 dark:text-white">{item.label}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-500">{item.desc}</p>
-                </div>
-                <div className="w-9 h-5 bg-indigo-600 rounded-full relative cursor-pointer">
-                  <span className="block w-3.5 h-3.5 bg-white rounded-full shadow-sm absolute top-0.5 right-0.5" />
+                  <code className="text-sm text-indigo-600 dark:text-indigo-400">{item.command}</code>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">{item.desc}</p>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">
-            Save Changes
-          </button>
-          <button className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-            Cancel
-          </button>
         </div>
       </div>
     </div>

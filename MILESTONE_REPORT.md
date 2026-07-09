@@ -152,7 +152,7 @@ All findings are architectural recommendations for future implementation. None b
 | **Schema**        | Core CRM + field-service ready |
 | **Validation**    | Pass                           |
 | **Build/Lint**    | Pass                           |
-| **Next step**     | Migration + seed data          |
+| **Next step**     | PostgreSQL smoke test          |
 
 ## What Was Built
 
@@ -171,6 +171,9 @@ All findings are architectural recommendations for future implementation. None b
 - All CRUD APIs require explicit `organizationId` via `x-organization-id`, `organizationId` query parameter, or JSON body where applicable.
 - All CRUD APIs filter out soft-deleted rows and use soft delete via `deletedAt`.
 - Route handlers validate required fields, enum values, nullable fields, dates, and numeric fields before database writes.
+- API-backed UI pages for Companies, Contacts, Leads, Tasks, Vendors, Jobs, and Outreach.
+- Shared temporary organization selector backed by browser storage and exposed in Settings.
+- Settings page documents PostgreSQL migration, seed, and local development commands.
 
 ## Validation Results
 
@@ -183,7 +186,7 @@ All findings are architectural recommendations for future implementation. None b
 
 - Replace local `.env` `DATABASE_URL` with a real PostgreSQL/Supabase connection string.
 - Run seed against a real PostgreSQL/Supabase database.
-- Smoke-test core CRUD routes against the migrated database.
+- Smoke-test core CRUD pages against the migrated database.
 - Add auth-backed organization resolution before production use.
 
 ## Latest Database Workflow Update
