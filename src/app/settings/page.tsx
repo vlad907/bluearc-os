@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
 import { useOrganization } from "@/context/OrganizationContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -8,6 +8,49 @@ import { useTheme } from "@/context/ThemeContext";
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
   const { organizationId, setOrganizationId } = useOrganization();
+  const [workspaceName, setWorkspaceName] = useState("Blue Arc Workspace");
+  const [workspaceSlug, setWorkspaceSlug] = useState("blue-arc-workspace");
+  const [setupStatus, setSetupStatus] = useState<string | null>(null);
+  const [setupError, setSetupError] = useState<string | null>(null);
+  const [creatingWorkspace, setCreatingWorkspace] = useState(false);
+
+  async function handleCreateWorkspace(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!workspaceName.trim()) {
+      return;
+    }
+
+    setCreatingWorkspace(true);
+    setSetupError(null);
+    setSetupStatus(null);
+
+    try {
+      const response = await fetch("/api/setup/organization", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: workspaceName.trim(),
+          slug: workspaceSlug.trim() || undefined,
+        }),
+      });
+      const payload = (await response.json()) as {
+        organization?: { id: string; name: string; slug: string };
+        error?: string;
+      };
+
+      if (!response.ok || !payload.organization) {
+        throw new Error(payload.error ?? "Failed to create workspace");
+      }
+
+      setOrganizationId(payload.organization.id);
+      setSetupStatus(`Created ${payload.organization.name} and selected it for this browser.`);
+    } catch (error) {
+      setSetupError(error instanceof Error ? error.message : "Failed to create workspace");
+    } finally {
+      setCreatingWorkspace(false);
+    }
+  }
 
   return (
     <div className="p-6 lg:p-8">
@@ -17,18 +60,52 @@ export default function SettingsPage() {
       />
       <div className="space-y-6 max-w-3xl">
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Development Organization</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Workspace Setup</h3>
           <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
-            Temporary tenant selector used by CRUD pages until auth-backed organization resolution is implemented.
+            Create or select the workspace used by the app. This replaces manually hunting for an organization ID during development.
           </p>
+          <form onSubmit={handleCreateWorkspace} className="mb-5 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-4">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_auto] gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Workspace Name
+                </label>
+                <input
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  value={workspaceName}
+                  onChange={(event) => setWorkspaceName(event.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Workspace Slug
+                </label>
+                <input
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  value={workspaceSlug}
+                  onChange={(event) => setWorkspaceSlug(event.target.value)}
+                />
+              </div>
+              <button
+                className="self-end px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!workspaceName.trim() || creatingWorkspace}
+                type="submit"
+              >
+                {creatingWorkspace ? "Creating..." : "Create Workspace"}
+              </button>
+            </div>
+            {setupStatus && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{setupStatus}</p>}
+            {setupError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{setupError}</p>}
+          </form>
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Organization ID
+                Current Workspace ID
               </label>
               <input
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                placeholder="Paste seeded organization UUID"
+                placeholder="Created workspace UUID"
                 value={organizationId}
                 onChange={(event) => setOrganizationId(event.target.value)}
               />
@@ -42,7 +119,7 @@ export default function SettingsPage() {
             </button>
           </div>
           <p className="mt-3 text-xs text-gray-500 dark:text-gray-500">
-            This value is saved in browser storage and sent as `x-organization-id` by the current API-backed pages.
+            This is still a temporary development flow. Production signup will create the workspace after authentication and resolve it server-side.
           </p>
         </div>
 
@@ -72,8 +149,8 @@ export default function SettingsPage() {
             {[
               { command: "cp .env.example .env", desc: "Create local environment config" },
               { command: "npm run db:migrate", desc: "Apply Prisma migration to PostgreSQL" },
-              { command: "npm run db:seed", desc: "Seed organization and CRM demo data" },
-              { command: "npm run dev", desc: "Run the app and use the seeded organization ID" },
+              { command: "npm run db:seed", desc: "Optional: seed demo CRM data" },
+              { command: "npm run dev", desc: "Run the app, then create a workspace from this Settings page" },
             ].map((item) => (
               <div key={item.command} className="flex items-center justify-between gap-4 py-2">
                 <div>

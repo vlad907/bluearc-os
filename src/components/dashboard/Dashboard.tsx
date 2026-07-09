@@ -120,7 +120,7 @@ export default function Dashboard() {
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <input
               className="w-full sm:w-80 px-3 py-2 text-sm bg-white/10 border border-white/15 rounded-lg text-white placeholder:text-indigo-100/50 outline-none focus:ring-2 focus:ring-indigo-300"
-              placeholder="Organization ID"
+              placeholder="Workspace ID"
               value={organizationId}
               onChange={(event) => setOrganizationId(event.target.value)}
             />
@@ -142,10 +142,16 @@ export default function Dashboard() {
 
       {!organizationId && (
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
-          <h2 className="font-semibold text-gray-900 dark:text-white">Select an organization</h2>
+          <h2 className="font-semibold text-gray-900 dark:text-white">Create or select a workspace</h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Enter the seeded organization ID here or in Settings to load live CRM metrics.
+            A fresh user should start in Settings, create a workspace, and the app will select it automatically.
           </p>
+          <Link
+            className="mt-4 inline-flex px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+            href="/settings"
+          >
+            Open Workspace Setup
+          </Link>
         </div>
       )}
 
