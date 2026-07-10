@@ -159,6 +159,27 @@ enum PartnershipType {
   unknown
 }
 
+enum IntegrationProvider {
+  openai
+  anthropic
+  google_gmail
+  google_oauth
+}
+
+enum IntegrationCredentialKind {
+  ai_provider
+  oauth_app
+  oauth_connection
+}
+
+enum IntegrationCredentialStatus {
+  configured
+  missing_env
+  invalid
+  connected
+  disabled
+}
+
 // ─── MODELS ────────────────────────────────────────────────────────────────────
 
 model Organization {
@@ -170,22 +191,23 @@ model Organization {
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
-  companies           Company[]
-  contacts            Contact[]
-  leads               Lead[]
-  tasks               Task[]
-  vendors             Vendor[]
-  jobs                Job[]
-  outreach            Outreach[]
-  emailDrafts         EmailDraft[]
-  emailThreads        EmailThread[]
-  emailMessages       EmailMessage[]
-  workspaceProfile    WorkspaceProfile?
-  workspaceAiStrategy WorkspaceAiStrategy?
-  websiteSnapshots    WebsiteSnapshot[]
-  websitePages        WebsitePage[]
-  agentResearchRuns   AgentResearchRun[]
-  partnerCandidates   PartnerCandidate[]
+  companies              Company[]
+  contacts               Contact[]
+  leads                  Lead[]
+  tasks                  Task[]
+  vendors                Vendor[]
+  jobs                   Job[]
+  outreach               Outreach[]
+  emailDrafts            EmailDraft[]
+  emailThreads           EmailThread[]
+  emailMessages          EmailMessage[]
+  workspaceProfile       WorkspaceProfile?
+  workspaceAiStrategy    WorkspaceAiStrategy?
+  websiteSnapshots       WebsiteSnapshot[]
+  websitePages           WebsitePage[]
+  agentResearchRuns      AgentResearchRun[]
+  partnerCandidates      PartnerCandidate[]
+  integrationCredentials IntegrationCredential[]
 
   @@map("organizations")
 }
@@ -583,6 +605,34 @@ model PartnerCandidate {
   @@index([partnershipType])
   @@index([fitScore])
   @@map("partner_candidates")
+}
+
+model IntegrationCredential {
+  id             String                      @id @default(uuid())
+  organizationId String
+  provider       IntegrationProvider
+  kind           IntegrationCredentialKind
+  status         IntegrationCredentialStatus @default(missing_env)
+  label          String?
+  envKeyName     String?
+  envSecretName  String?
+  scopes         String[]                    @default([])
+  config         Json?
+  metadata       Json?
+  lastCheckedAt  DateTime?
+  connectedAt    DateTime?
+  disabledAt     DateTime?
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider, kind])
+  @@index([organizationId])
+  @@index([provider])
+  @@index([kind])
+  @@index([status])
+  @@map("integration_credentials")
 }
 
 model WorkspaceProfile {

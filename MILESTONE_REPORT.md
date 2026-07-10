@@ -184,6 +184,7 @@ All findings are architectural recommendations for future implementation. None b
 - Added lead website research ingestion with WebsiteSnapshot/WebsitePage storage, extracted emails/phones, and persisted deterministic Agent 1 research output using the preserved CRM Command prompt metadata.
 - Added EmailDraft persistence plus deterministic Agent 2 draft generation and Agent 3 verification, with Automation queue review actions for approve/reject/mark sent.
 - Added PartnerCandidate persistence plus Partnerships UI for candidate import, deterministic fit analysis, contact extraction, and conversion into partner company, lead, and task records.
+- Added IntegrationCredential persistence and Settings UI for OpenAI, Anthropic, and Gmail OAuth environment-variable references without storing raw secrets in the database.
 
 ## Validation Results
 

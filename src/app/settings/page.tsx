@@ -5,6 +5,59 @@ import PageHeader from "@/components/layout/PageHeader";
 import { useOrganization } from "@/context/OrganizationContext";
 import { useTheme } from "@/context/ThemeContext";
 
+type IntegrationCredential = {
+  id: string;
+  provider: "openai" | "anthropic" | "google_gmail" | "google_oauth";
+  kind: "ai_provider" | "oauth_app" | "oauth_connection";
+  status: "configured" | "missing_env" | "invalid" | "connected" | "disabled";
+  label: string | null;
+  envKeyName: string | null;
+  envSecretName: string | null;
+  envKeyPresent: boolean | null;
+  envSecretPresent: boolean | null;
+  scopes: string[];
+};
+
+type CredentialPreset = {
+  provider: IntegrationCredential["provider"];
+  kind: IntegrationCredential["kind"];
+  label: string;
+  envKeyName: string;
+  envSecretName: string;
+  scopes: string[];
+  description: string;
+};
+
+const credentialPresets: CredentialPreset[] = [
+  {
+    provider: "openai",
+    kind: "ai_provider",
+    label: "OpenAI",
+    envKeyName: "OPENAI_API_KEY",
+    envSecretName: "",
+    scopes: [],
+    description: "Provider-backed Agent 1/2/3 execution and strategy generation.",
+  },
+  {
+    provider: "anthropic",
+    kind: "ai_provider",
+    label: "Anthropic",
+    envKeyName: "ANTHROPIC_API_KEY",
+    envSecretName: "",
+    scopes: [],
+    description: "Alternative provider for high-quality outreach drafts.",
+  },
+  {
+    provider: "google_gmail",
+    kind: "oauth_app",
+    label: "Gmail OAuth App",
+    envKeyName: "GOOGLE_CLIENT_ID",
+    envSecretName: "GOOGLE_CLIENT_SECRET",
+    scopes: ["https://www.googleapis.com/auth/gmail.modify", "https://www.googleapis.com/auth/gmail.compose"],
+    description: "Foundation for Gmail draft creation, inbox sync, and reply sending.",
+  },
+];
+
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
   const { organizationId, setOrganizationId } = useOrganization();
@@ -19,6 +72,10 @@ export default function SettingsPage() {
   const [profileStatus, setProfileStatus] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [credentials, setCredentials] = useState<IntegrationCredential[]>([]);
+  const [credentialStatus, setCredentialStatus] = useState<string | null>(null);
+  const [credentialError, setCredentialError] = useState<string | null>(null);
+  const [savingCredential, setSavingCredential] = useState<string | null>(null);
   const [profileForm, setProfileForm] = useState({
     businessName: "",
     businessDescription: "",
@@ -118,6 +175,33 @@ export default function SettingsPage() {
     }
   }, [organizationId]);
 
+  const loadCredentials = useCallback(async () => {
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    setCredentialError(null);
+
+    try {
+      const response = await fetch("/api/integration-credentials", {
+        headers: { "x-organization-id": organizationId.trim() },
+        cache: "no-store",
+      });
+      const payload = await response.json() as {
+        credentials?: IntegrationCredential[];
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to load integration credentials");
+      }
+
+      setCredentials(payload.credentials ?? []);
+    } catch (error) {
+      setCredentialError(error instanceof Error ? error.message : "Failed to load integration credentials");
+    }
+  }, [organizationId]);
+
   useEffect(() => {
     if (!organizationId.trim()) {
       return;
@@ -125,10 +209,11 @@ export default function SettingsPage() {
 
     const timer = window.setTimeout(() => {
       void loadWorkspaceProfile();
+      void loadCredentials();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [loadWorkspaceProfile, organizationId]);
+  }, [loadCredentials, loadWorkspaceProfile, organizationId]);
 
   async function handleCreateWorkspace(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -277,6 +362,58 @@ export default function SettingsPage() {
     } finally {
       setSavingProfile(false);
     }
+  }
+
+  async function handleSaveCredential(preset: CredentialPreset) {
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    setSavingCredential(`${preset.provider}:${preset.kind}`);
+    setCredentialStatus(null);
+    setCredentialError(null);
+
+    try {
+      const response = await fetch("/api/integration-credentials", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId.trim(),
+        },
+        body: JSON.stringify({
+          provider: preset.provider,
+          kind: preset.kind,
+          label: preset.label,
+          envKeyName: preset.envKeyName || null,
+          envSecretName: preset.envSecretName || null,
+          scopes: preset.scopes,
+        }),
+      });
+      const payload = await response.json() as {
+        credential?: IntegrationCredential;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.credential) {
+        throw new Error(payload.error ?? "Failed to save credential reference");
+      }
+
+      setCredentials((current) => {
+        const withoutCurrent = current.filter((credential) => (
+          credential.provider !== payload.credential?.provider || credential.kind !== payload.credential.kind
+        ));
+        return [...withoutCurrent, payload.credential as IntegrationCredential].sort((left, right) => left.provider.localeCompare(right.provider));
+      });
+      setCredentialStatus(`${preset.label} credential reference saved. Status: ${payload.credential.status}.`);
+    } catch (error) {
+      setCredentialError(error instanceof Error ? error.message : "Failed to save credential reference");
+    } finally {
+      setSavingCredential(null);
+    }
+  }
+
+  function findCredential(preset: CredentialPreset) {
+    return credentials.find((credential) => credential.provider === preset.provider && credential.kind === preset.kind) ?? null;
   }
 
   return (
@@ -491,6 +628,62 @@ export default function SettingsPage() {
           {profileStatus && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{profileStatus}</p>}
           {profileError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{profileError}</p>}
         </form>
+
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Integration Credentials</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
+            Store references to server-side environment variables only. Raw API keys and OAuth secrets stay in `.env`, Vercel, or your secrets manager.
+          </p>
+          <div className="space-y-3">
+            {credentialPresets.map((preset) => {
+              const credential = findCredential(preset);
+              const savingKey = `${preset.provider}:${preset.kind}`;
+              const configured = credential?.status === "configured" || credential?.status === "connected";
+
+              return (
+                <div key={savingKey} className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-gray-900 dark:text-white">{preset.label}</p>
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${configured ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"}`}>
+                          {credential?.status ?? "not_saved"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">{preset.description}</p>
+                      <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-gray-500 dark:text-gray-500 md:grid-cols-2">
+                        <div>
+                          Key env: <code className="text-indigo-600 dark:text-indigo-400">{preset.envKeyName || "none"}</code>
+                          {credential?.envKeyPresent !== null && credential?.envKeyPresent !== undefined ? ` · ${credential.envKeyPresent ? "present" : "missing"}` : ""}
+                        </div>
+                        <div>
+                          Secret env: <code className="text-indigo-600 dark:text-indigo-400">{preset.envSecretName || "none"}</code>
+                          {credential?.envSecretPresent !== null && credential?.envSecretPresent !== undefined ? ` · ${credential.envSecretPresent ? "present" : "missing"}` : ""}
+                        </div>
+                      </div>
+                      {preset.scopes.length > 0 && (
+                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-500">Scopes: {preset.scopes.join(", ")}</p>
+                      )}
+                    </div>
+                    <button
+                      className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                      disabled={!organizationId.trim() || savingCredential === savingKey}
+                      onClick={() => void handleSaveCredential(preset)}
+                      type="button"
+                    >
+                      {savingCredential === savingKey ? "Checking..." : "Save + Check"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300">
+            Add missing values to `.env`, restart `npm run dev`, then click “Save + Check” again. This avoids storing secrets in Postgres.
+          </div>
+          {credentialStatus && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{credentialStatus}</p>}
+          {credentialError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{credentialError}</p>}
+        </div>
 
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Appearance</h3>

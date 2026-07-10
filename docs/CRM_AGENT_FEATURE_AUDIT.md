@@ -29,6 +29,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Website ingestion and Agent 1 research: lead-level website snapshots/pages, extracted emails/phones, persisted Agent 1 structured output, and a Leads table action that runs ingestion plus research.
 - Agent 2/Agent 3 draft workflow: lead-level deterministic draft generation, verifier checks, EmailDraft persistence, and Automation review queue approve/reject/mark-sent actions.
 - Partnership workflow: PartnerCandidate model, manual partner candidate import, deterministic partnership fit analysis, fit scoring, contact extraction, and conversion to Company/Lead/Task.
+- Integration credential setup: IntegrationCredential model and Settings panel for OpenAI, Anthropic, and Gmail OAuth env-var references without storing raw secrets in Postgres.
 
 ## Key Original Features Not Yet Fully Ported
 
@@ -41,7 +42,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Gmail draft creation from approved EmailDraft records.
 - Gmail OAuth, draft creation, send-as aliases, inbox sync, and reply sending.
 - Full inbox sync, AI classification, and approve/reject reply actions. Basic mailbox thread/message storage and suggested reply generation are now present.
-- API key credential storage/onboarding flow.
+- Raw API key credential storage. The app now stores env-var references and status checks instead of raw secrets.
 - Workspace AI strategy generation from profile. Profile storage, selected target categories, pain points, CTA style, and guardrails are now present.
 - Background pipeline worker for imported → research → draft → verify → draft/send progression.
 - Automated partner search sourcing from live web search APIs. Partner candidate storage, fit score, contact emails, contact form URL, status transitions, and conversion to leads now exist.
@@ -59,8 +60,8 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 
 ## Recommended Next Merge Passes
 
-1. Add Prisma models for integration credentials.
-2. Add credential settings for AI keys and Google API/OAuth credentials.
-3. Upgrade deterministic Agent 1 research to provider-backed execution using the preserved prompt catalog.
-4. Upgrade deterministic Agent 2/Agent 3 draft generation and verification to provider-backed execution.
-5. Add live partner web search plus Gmail OAuth/draft/send/inbox sync after credential encryption and auth are in place.
+1. Upgrade deterministic Agent 1 research to provider-backed execution using the preserved prompt catalog.
+2. Upgrade deterministic Agent 2/Agent 3 draft generation and verification to provider-backed execution.
+3. Add live partner web search using configured provider keys.
+4. Add Gmail OAuth connect/callback, draft creation, send, and inbox sync.
+5. Add encrypted OAuth token storage before any real Gmail account tokens are persisted.
