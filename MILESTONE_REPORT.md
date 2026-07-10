@@ -174,6 +174,7 @@ All findings are architectural recommendations for future implementation. None b
 - API-backed UI pages for Companies, Contacts, Leads, Tasks, Vendors, Jobs, and Outreach.
 - Shared temporary organization selector backed by browser storage and exposed in Settings.
 - First-run development workspace creation from Settings via `/api/setup/organization`.
+- One-click demo CRM data seeding for an empty selected workspace via `/api/setup/demo-data`.
 - Settings page documents PostgreSQL migration, seed, and local development commands.
 
 ## Validation Results

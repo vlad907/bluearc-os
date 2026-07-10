@@ -13,6 +13,9 @@ export default function SettingsPage() {
   const [setupStatus, setSetupStatus] = useState<string | null>(null);
   const [setupError, setSetupError] = useState<string | null>(null);
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
+  const [seedStatus, setSeedStatus] = useState<string | null>(null);
+  const [seedError, setSeedError] = useState<string | null>(null);
+  const [seedingDemoData, setSeedingDemoData] = useState(false);
 
   async function handleCreateWorkspace(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,6 +52,40 @@ export default function SettingsPage() {
       setSetupError(error instanceof Error ? error.message : "Failed to create workspace");
     } finally {
       setCreatingWorkspace(false);
+    }
+  }
+
+  async function handleSeedDemoData() {
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    setSeedingDemoData(true);
+    setSeedError(null);
+    setSeedStatus(null);
+
+    try {
+      const response = await fetch("/api/setup/demo-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId: organizationId.trim() }),
+      });
+      const payload = (await response.json()) as {
+        seeded?: boolean;
+        counts?: Record<string, number>;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.seeded) {
+        throw new Error(payload.error ?? "Failed to seed demo data");
+      }
+
+      const totalRecords = Object.values(payload.counts ?? {}).reduce((sum, count) => sum + count, 0);
+      setSeedStatus(`Seeded ${totalRecords} demo records into the selected workspace.`);
+    } catch (error) {
+      setSeedError(error instanceof Error ? error.message : "Failed to seed demo data");
+    } finally {
+      setSeedingDemoData(false);
     }
   }
 
@@ -124,6 +161,26 @@ export default function SettingsPage() {
           <p className="mt-3 text-xs text-gray-500 dark:text-gray-500">
             This is still a temporary development flow. Production signup will create the workspace after authentication and resolve it server-side.
           </p>
+          <div className="mt-5 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">Demo CRM Data</p>
+                <p className="text-xs text-gray-500 dark:text-gray-500">
+                  Fill an empty workspace with realistic companies, leads, jobs, tasks, vendors, and outreach.
+                </p>
+              </div>
+              <button
+                className="px-4 py-2 text-sm font-medium text-white bg-gray-900 dark:bg-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!organizationId.trim() || seedingDemoData}
+                onClick={handleSeedDemoData}
+                type="button"
+              >
+                {seedingDemoData ? "Seeding..." : "Seed Demo Data"}
+              </button>
+            </div>
+            {seedStatus && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{seedStatus}</p>}
+            {seedError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{seedError}</p>}
+          </div>
         </div>
 
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
