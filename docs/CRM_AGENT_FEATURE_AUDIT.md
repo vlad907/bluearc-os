@@ -30,15 +30,15 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Agent 2/Agent 3 draft workflow: lead-level deterministic draft generation, verifier checks, EmailDraft persistence, and Automation review queue approve/reject/mark-sent actions.
 - Partnership workflow: PartnerCandidate model, manual partner candidate import, deterministic partnership fit analysis, fit scoring, contact extraction, and conversion to Company/Lead/Task.
 - Integration credential setup: IntegrationCredential model and Settings panel for OpenAI, Anthropic, and Gmail OAuth env-var references without storing raw secrets in Postgres.
+- Provider-backed agent execution: Agent 1, Agent 2, and Agent 3 now attempt configured OpenAI/Anthropic JSON execution first and fall back to deterministic local output if credentials are missing or provider output fails validation.
 
 ## Key Original Features Not Yet Fully Ported
 
 - Local business discovery via Google Places, geocoding, radius/category search.
 - Provider-backed partnership web search. Manual partner candidate import and deterministic candidate ranking now exist.
 - Multi-page website crawling beyond the manually submitted URL.
-- Provider-backed Agent 1 AI execution. A deterministic app-native Agent 1 pass now persists the old structured output shape and prompt provenance.
-- Provider-backed Agent 2 draft generation via Anthropic/OpenAI with workspace strategy context. A deterministic app-native draft path now exists.
-- Provider-backed Agent 3 verification. A deterministic verifier and review queue now exist.
+- Production hardening for provider-backed Agent 1 execution, including retries, rate limits, and cost controls. Provider execution path now exists.
+- Production hardening for provider-backed Agent 2/3 execution, including retries, rate limits, and cost controls. Provider execution path now exists.
 - Gmail draft creation from approved EmailDraft records.
 - Gmail OAuth, draft creation, send-as aliases, inbox sync, and reply sending.
 - Full inbox sync, AI classification, and approve/reject reply actions. Basic mailbox thread/message storage and suggested reply generation are now present.
@@ -60,8 +60,8 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 
 ## Recommended Next Merge Passes
 
-1. Upgrade deterministic Agent 1 research to provider-backed execution using the preserved prompt catalog.
-2. Upgrade deterministic Agent 2/Agent 3 draft generation and verification to provider-backed execution.
-3. Add live partner web search using configured provider keys.
-4. Add Gmail OAuth connect/callback, draft creation, send, and inbox sync.
-5. Add encrypted OAuth token storage before any real Gmail account tokens are persisted.
+1. Add provider-call retry/rate-limit/cost tracking around Agent 1/2/3 execution.
+2. Add live partner web search using configured provider keys.
+3. Add Gmail OAuth connect/callback, draft creation, send, and inbox sync.
+4. Add encrypted OAuth token storage before any real Gmail account tokens are persisted.
+5. Add observability for fallback reasons and provider failures.

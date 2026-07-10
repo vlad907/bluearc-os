@@ -21,7 +21,9 @@ export type Agent2DraftOutput = {
   used_signal: string;
   promptKey: string;
   promptSource: string;
-  generationMode: "deterministic_v1";
+  generationMode: string;
+  provider?: string;
+  model?: string;
 };
 
 export type Agent3VerifierOutput = {
@@ -31,7 +33,9 @@ export type Agent3VerifierOutput = {
   final_email: string;
   promptKey: string;
   promptSource: string;
-  generationMode: "deterministic_v1";
+  generationMode: string;
+  provider?: string;
+  model?: string;
 };
 
 function readString(value: unknown) {

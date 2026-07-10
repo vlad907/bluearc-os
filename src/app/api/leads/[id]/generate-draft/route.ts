@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { providerErrorMetadata, runProviderAgent2, runProviderAgent3 } from "@/lib/ai/provider-agents";
 import { DraftMode, runDeterministicAgent2, runDeterministicAgent3 } from "@/lib/outreach/draft-agents";
 
 export const dynamic = "force-dynamic";
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
       prisma.workspaceAiStrategy.findUnique({ where: { organizationId } }),
     ]);
     const agent1Output = asJsonObject(lead.agentResearchRuns[0]?.output);
-    const draft = runDeterministicAgent2({
+    const agentInput = {
       mode,
       leadTitle: lead.title,
       companyName: lead.company?.name,
@@ -111,13 +112,43 @@ export async function POST(request: NextRequest, context: RouteParams) {
           guardrails: workspaceAiStrategy.guardrails,
         }
         : null,
-    });
-    const verification = runDeterministicAgent3({
+    };
+    let providerFallback: Prisma.JsonObject | null = null;
+    let draft = runDeterministicAgent2(agentInput);
+
+    try {
+      const providerDraft = await runProviderAgent2(organizationId, agentInput);
+      if (providerDraft) {
+        draft = providerDraft;
+      }
+    } catch (providerError) {
+      providerFallback = providerErrorMetadata(providerError);
+    }
+
+    let verification = runDeterministicAgent3({
       draft,
       agent1Output,
       mode,
       workspaceProfile: asJsonObject(workspaceProfile as unknown as Prisma.JsonValue),
     });
+
+    try {
+      const providerVerification = await runProviderAgent3({
+        organizationId,
+        draft,
+        agent1Output,
+        mode,
+        workspaceProfile: asJsonObject(workspaceProfile as unknown as Prisma.JsonValue),
+      });
+      if (providerVerification) {
+        verification = providerVerification;
+      }
+    } catch (providerError) {
+      providerFallback = {
+        ...(providerFallback ?? {}),
+        verifierProviderFallbackReason: providerError instanceof Error ? providerError.message : "Provider verifier call failed",
+      };
+    }
 
     const outreach = await prisma.outreach.create({
       data: {
@@ -133,6 +164,9 @@ export async function POST(request: NextRequest, context: RouteParams) {
         metadata: {
           source: "agent2_agent3_draft",
           verifierDecision: verification.decision,
+          generationMode: draft.generationMode,
+          verifierGenerationMode: verification.generationMode,
+          ...providerFallback,
         },
       },
     });
@@ -159,8 +193,10 @@ export async function POST(request: NextRequest, context: RouteParams) {
         verifierPromptKey: verification.promptKey,
         verifierPromptSource: verification.promptSource,
         metadata: {
-          generationMode: "deterministic_v1",
+          generationMode: draft.generationMode,
+          verifierGenerationMode: verification.generationMode,
           leadTitle: lead.title,
+          ...providerFallback,
         },
       },
       include: {

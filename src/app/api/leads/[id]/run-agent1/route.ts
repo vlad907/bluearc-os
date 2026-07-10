@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { providerErrorMetadata, runProviderAgent1 } from "@/lib/ai/provider-agents";
 import { runDeterministicAgent1 } from "@/lib/research/agent1";
 
 export const dynamic = "force-dynamic";
@@ -91,7 +92,21 @@ export async function POST(request: NextRequest, context: RouteParams) {
       return jsonError("Run website ingestion before Agent 1 research", 400);
     }
 
-    const output = runDeterministicAgent1(snapshot.rawText);
+    let output = runDeterministicAgent1(snapshot.rawText);
+    let providerFallback: Prisma.JsonObject | null = null;
+
+    try {
+      const providerOutput = await runProviderAgent1(organizationId, snapshot.rawText);
+      if (providerOutput) {
+        output = {
+          ...output,
+          ...providerOutput,
+        };
+      }
+    } catch (providerError) {
+      providerFallback = providerErrorMetadata(providerError);
+    }
+
     const researchRun = await prisma.agentResearchRun.create({
       data: {
         organizationId,
@@ -101,7 +116,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
         contactId: lead.contactId,
         agent: "agent1",
         status: "completed",
-        output,
+        output: providerFallback ? { ...output, ...providerFallback } : output,
         promptKey: output.promptKey,
         promptSource: output.promptSource,
       },
@@ -115,7 +130,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
         metadata: {
           ...metadata,
           latestAgent1RunId: researchRun.id,
-          latestAgent1Output: output,
+          latestAgent1Output: providerFallback ? { ...output, ...providerFallback } : output,
           latestSnapshotId: snapshot.id,
           researchConfidence: output.confidence_score,
           researchCompletedAt: researchRun.createdAt.toISOString(),
