@@ -129,48 +129,51 @@ enum OutreachStatus {
 // ─── MODELS ────────────────────────────────────────────────────────────────────
 
 model Organization {
-  id        String             @id @default(uuid())
+  id        String           @id @default(uuid())
   name      String
-  slug      String             @unique
-  plan      OrganizationPlan   @default(free)
+  slug      String           @unique
+  plan      OrganizationPlan @default(free)
   settings  Json?
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 
-  companies Company[]
-  contacts  Contact[]
-  leads     Lead[]
-  tasks     Task[]
-  vendors   Vendor[]
-  jobs      Job[]
-  outreach  Outreach[]
+  companies     Company[]
+  contacts      Contact[]
+  leads         Lead[]
+  tasks         Task[]
+  vendors       Vendor[]
+  jobs          Job[]
+  outreach      Outreach[]
+  emailThreads  EmailThread[]
+  emailMessages EmailMessage[]
 
   @@map("organizations")
 }
 
 model Company {
-  id               String                   @id @default(uuid())
+  id               String                  @id @default(uuid())
   organizationId   String
   name             String
-  relationshipType CompanyRelationshipType  @default(customer)
+  relationshipType CompanyRelationshipType @default(customer)
   domain           String?
   industry         String?
   size             CompanySize?
-  status           CompanyStatus            @default(prospect)
+  status           CompanyStatus           @default(prospect)
   website          String?
   phone            String?
   address          Json?
   metadata         Json?
   deletedAt        DateTime?
-  createdAt        DateTime                 @default(now())
-  updatedAt        DateTime                 @updatedAt
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
 
-  organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  contacts         Contact[]
-  leads            Lead[]
-  vendors          Vendor[]
-  jobs             Job[]
-  outreach         Outreach[]
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contacts     Contact[]
+  leads        Lead[]
+  vendors      Vendor[]
+  jobs         Job[]
+  outreach     Outreach[]
+  emailThreads EmailThread[]
 
   @@index([organizationId])
   @@index([status])
@@ -178,7 +181,7 @@ model Company {
 }
 
 model Contact {
-  id             String         @id @default(uuid())
+  id             String        @id @default(uuid())
   organizationId String
   companyId      String?
   firstName      String
@@ -188,17 +191,18 @@ model Contact {
   title          String?
   role           ContactRole?
   source         String?
-  status         ContactStatus  @default(active)
+  status         ContactStatus @default(active)
   metadata       Json?
   deletedAt      DateTime?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
-  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  company        Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  leads          Lead[]
-  jobs           Job[]
-  outreach       Outreach[]
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  leads        Lead[]
+  jobs         Job[]
+  outreach     Outreach[]
+  emailThreads EmailThread[]
 
   @@index([organizationId])
   @@index([companyId])
@@ -206,28 +210,29 @@ model Contact {
 }
 
 model Lead {
-  id             String      @id @default(uuid())
+  id             String    @id @default(uuid())
   organizationId String
   contactId      String?
   companyId      String?
   title          String
-  stage          LeadStage   @default(new)
+  stage          LeadStage @default(new)
   value          Decimal?
-  currency       String      @default("USD")
+  currency       String    @default("USD")
   probability    Int?
   source         String?
   assignedToId   String?
   expectedClose  DateTime?
   metadata       Json?
   deletedAt      DateTime?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  contact        Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  company        Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  jobs           Job[]
-  outreach       Outreach[]
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact      Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company      Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  jobs         Job[]
+  outreach     Outreach[]
+  emailThreads EmailThread[]
 
   @@index([organizationId])
   @@index([contactId])
@@ -253,7 +258,7 @@ model Task {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@index([entityType, entityId])
@@ -279,9 +284,9 @@ model Vendor {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  company        Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  jobs           Job[]
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  jobs         Job[]
 
   @@index([organizationId])
   @@index([companyId])
@@ -290,7 +295,7 @@ model Vendor {
 }
 
 model Job {
-  id             String       @id @default(uuid())
+  id             String      @id @default(uuid())
   organizationId String
   companyId      String?
   contactId      String?
@@ -298,8 +303,8 @@ model Job {
   leadId         String?
   title          String
   description    String?
-  status         JobStatus    @default(open)
-  priority       JobPriority  @default(medium)
+  status         JobStatus   @default(open)
+  priority       JobPriority @default(medium)
   type           String?
   siteAddress    Json?
   postedDate     DateTime?
@@ -309,15 +314,15 @@ model Job {
   assignedToId   String?
   metadata       Json?
   deletedAt      DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  company        Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  contact        Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  vendor         Vendor?      @relation(fields: [vendorId], references: [id], onDelete: SetNull)
-  lead           Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  outreach       Outreach[]
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact      Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  vendor       Vendor?      @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  outreach     Outreach[]
 
   @@index([organizationId])
   @@index([companyId])
@@ -329,15 +334,15 @@ model Job {
 }
 
 model Outreach {
-  id             String             @id @default(uuid())
+  id             String            @id @default(uuid())
   organizationId String
   companyId      String?
   contactId      String?
   leadId         String?
   jobId          String?
-  channel        OutreachChannel    @default(email)
-  direction      OutreachDirection  @default(outbound)
-  status         OutreachStatus     @default(draft)
+  channel        OutreachChannel   @default(email)
+  direction      OutreachDirection @default(outbound)
+  status         OutreachStatus    @default(draft)
   subject        String?
   body           String?
   scheduledAt    DateTime?
@@ -347,14 +352,15 @@ model Outreach {
   repliedAt      DateTime?
   metadata       Json?
   deletedAt      DateTime?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
-  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  company        Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  contact        Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  lead           Lead?              @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  job            Job?               @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact      Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  lead         Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  job          Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  emailThreads EmailThread[]
 
   @@index([organizationId])
   @@index([companyId])
@@ -365,4 +371,73 @@ model Outreach {
   @@index([status])
   @@index([scheduledAt])
   @@map("outreach")
+}
+
+model EmailThread {
+  id               String    @id @default(uuid())
+  organizationId   String
+  companyId        String?
+  contactId        String?
+  leadId           String?
+  outreachId       String?
+  provider         String    @default("manual")
+  providerThreadId String?
+  subject          String
+  status           String    @default("open")
+  classification   String?
+  lastMessageAt    DateTime?
+  metadata         Json?
+  deletedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact      Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  lead         Lead?          @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  outreach     Outreach?      @relation(fields: [outreachId], references: [id], onDelete: SetNull)
+  messages     EmailMessage[]
+
+  @@index([organizationId])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([leadId])
+  @@index([outreachId])
+  @@index([status])
+  @@index([classification])
+  @@index([lastMessageAt])
+  @@map("email_threads")
+}
+
+model EmailMessage {
+  id                String            @id @default(uuid())
+  organizationId    String
+  threadId          String
+  providerMessageId String?
+  direction         OutreachDirection
+  fromEmail         String?
+  toEmail           String?
+  subject           String?
+  body              String
+  classification    String?
+  suggestedSubject  String?
+  suggestedBody     String?
+  suggestedAt       DateTime?
+  sentAt            DateTime?
+  receivedAt        DateTime?
+  metadata          Json?
+  deletedAt         DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  thread       EmailThread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([threadId])
+  @@index([direction])
+  @@index([classification])
+  @@index([receivedAt])
+  @@index([sentAt])
+  @@map("email_messages")
 }

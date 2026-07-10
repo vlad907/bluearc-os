@@ -24,6 +24,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Discovery page: prospect intake from pasted rows, creates Company, Lead, and research Task records.
 - Automation page: review queue for draft outreach, active tasks, and hot leads.
 - Sidebar grouping: CRM Command items are now under a dedicated submenu to avoid mixing core CRM CRUD with agent workflows.
+- Outreach mailbox: thread/message models, manual inbound email import, classification filters, linked outreach records, and deterministic suggested replies using the preserved response-draft prompt metadata.
 
 ## Key Original Features Not Yet Fully Ported
 
@@ -35,7 +36,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Agent 3 draft verification and send/hold review queue.
 - Email draft model with review status, Gmail draft IDs, sent metadata, and agent outputs.
 - Gmail OAuth, draft creation, send-as aliases, inbox sync, and reply sending.
-- Inbox thread/message model, inbound classification, suggested replies, approve/reject reply actions.
+- Full inbox sync, AI classification, and approve/reject reply actions. Basic mailbox thread/message storage and suggested reply generation are now present.
 - Workspace profile/settings/onboarding for API keys, sender signature, service area, tone, CTA, and do-not-mention lists.
 - Workspace AI strategy generation, selected target categories, pain points, CTA style, and guardrails.
 - Background pipeline worker for imported → research → draft → verify → draft/send progression.

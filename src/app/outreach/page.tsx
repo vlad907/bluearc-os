@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
 import { useOrganization } from "@/context/OrganizationContext";
 import { classNames } from "@/lib/utils";
@@ -30,6 +30,34 @@ type Outreach = {
   createdAt: string;
 };
 
+type EmailMessage = {
+  id: string;
+  direction: OutreachDirection;
+  fromEmail: string | null;
+  toEmail: string | null;
+  subject: string | null;
+  body: string;
+  classification: string | null;
+  suggestedSubject: string | null;
+  suggestedBody: string | null;
+  receivedAt: string | null;
+  sentAt: string | null;
+  createdAt: string;
+};
+
+type EmailThread = {
+  id: string;
+  subject: string;
+  status: string;
+  classification: string | null;
+  lastMessageAt: string | null;
+  company: { id: string; name: string } | null;
+  contact: { id: string; firstName: string; lastName: string | null; email: string | null } | null;
+  lead: { id: string; title: string } | null;
+  outreach: { id: string; subject: string | null; status: string } | null;
+  messages: EmailMessage[];
+};
+
 type OutreachForm = {
   channel: OutreachChannel;
   direction: OutreachDirection;
@@ -46,6 +74,14 @@ const initialForm: OutreachForm = {
   subject: "",
   body: "",
   scheduledAt: "",
+};
+
+const initialMailboxForm = {
+  subject: "",
+  fromEmail: "",
+  toEmail: "",
+  body: "",
+  outreachId: "",
 };
 
 const channelStyles: Record<OutreachChannel, string> = {
@@ -106,12 +142,105 @@ function formatDate(value: string | null) {
 
 export default function OutreachPage() {
   const { organizationId, setOrganizationId } = useOrganization();
+  const [activeTab, setActiveTab] = useState<"log" | "mailbox">("mailbox");
   const [outreach, setOutreach] = useState<Outreach[]>([]);
+  const [threads, setThreads] = useState<EmailThread[]>([]);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [mailboxSearch, setMailboxSearch] = useState("");
+  const [mailboxClassification, setMailboxClassification] = useState("");
+  const [mailboxForm, setMailboxForm] = useState(initialMailboxForm);
   const [form, setForm] = useState<OutreachForm>(initialForm);
   const [loading, setLoading] = useState(false);
+  const [loadingMailbox, setLoadingMailbox] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [importingInbound, setImportingInbound] = useState(false);
+  const [suggestingThreadId, setSuggestingThreadId] = useState<string | null>(null);
+  const [mailboxMessage, setMailboxMessage] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mailboxError, setMailboxError] = useState<string | null>(null);
+
+  const loadOutreach = useCallback(async (signal?: AbortSignal) => {
+    if (!organizationId) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/outreach", {
+        headers: { "x-organization-id": organizationId },
+        signal,
+      });
+      const payload = (await response.json()) as unknown;
+
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload, "Failed to load outreach"));
+      }
+
+      setOutreach(
+        payload && typeof payload === "object" && "outreach" in payload && Array.isArray(payload.outreach)
+          ? payload.outreach
+          : [],
+      );
+    } catch (loadError) {
+      if (loadError instanceof DOMException && loadError.name === "AbortError") {
+        return;
+      }
+
+      setError(loadError instanceof Error ? loadError.message : "Failed to load outreach");
+      setOutreach([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [organizationId]);
+
+  const loadMailbox = useCallback(async (signal?: AbortSignal) => {
+    if (!organizationId) {
+      return;
+    }
+
+    setLoadingMailbox(true);
+    setMailboxError(null);
+
+    const params = new URLSearchParams();
+    if (mailboxSearch.trim()) {
+      params.set("q", mailboxSearch.trim());
+    }
+    if (mailboxClassification) {
+      params.set("classification", mailboxClassification);
+    }
+
+    try {
+      const response = await fetch(`/api/mailbox?${params.toString()}`, {
+        headers: { "x-organization-id": organizationId },
+        signal,
+      });
+      const payload = (await response.json()) as unknown;
+
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload, "Failed to load mailbox"));
+      }
+
+      const nextThreads =
+        payload && typeof payload === "object" && "threads" in payload && Array.isArray(payload.threads)
+          ? (payload.threads as EmailThread[])
+          : [];
+
+      setThreads(nextThreads);
+      setSelectedThreadId((current) => current ?? nextThreads[0]?.id ?? null);
+    } catch (loadError) {
+      if (loadError instanceof DOMException && loadError.name === "AbortError") {
+        return;
+      }
+
+      setMailboxError(loadError instanceof Error ? loadError.message : "Failed to load mailbox");
+      setThreads([]);
+    } finally {
+      setLoadingMailbox(false);
+    }
+  }, [mailboxClassification, mailboxSearch, organizationId]);
 
   useEffect(() => {
     if (!organizationId) {
@@ -119,43 +248,21 @@ export default function OutreachPage() {
     }
 
     const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void loadOutreach(controller.signal);
+      void loadMailbox(controller.signal);
+    }, 0);
 
-    async function loadOutreach() {
-      setLoading(true);
-      setError(null);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [loadMailbox, loadOutreach, organizationId]);
 
-      try {
-        const response = await fetch("/api/outreach", {
-          headers: { "x-organization-id": organizationId },
-          signal: controller.signal,
-        });
-        const payload = (await response.json()) as unknown;
-
-        if (!response.ok) {
-          throw new Error(getErrorMessage(payload, "Failed to load outreach"));
-        }
-
-        setOutreach(
-          payload && typeof payload === "object" && "outreach" in payload && Array.isArray(payload.outreach)
-            ? payload.outreach
-            : [],
-        );
-      } catch (loadError) {
-        if (loadError instanceof DOMException && loadError.name === "AbortError") {
-          return;
-        }
-
-        setError(loadError instanceof Error ? loadError.message : "Failed to load outreach");
-        setOutreach([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    void loadOutreach();
-
-    return () => controller.abort();
-  }, [organizationId]);
+  const selectedThread = useMemo(
+    () => threads.find((thread) => thread.id === selectedThreadId) ?? threads[0] ?? null,
+    [selectedThreadId, threads],
+  );
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -201,6 +308,111 @@ export default function OutreachPage() {
     }
   }
 
+  async function handleImportInbound(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!organizationId) {
+      return;
+    }
+
+    setImportingInbound(true);
+    setMailboxError(null);
+    setMailboxMessage(null);
+
+    try {
+      const response = await fetch("/api/mailbox", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({
+          subject: mailboxForm.subject.trim(),
+          fromEmail: mailboxForm.fromEmail.trim() || null,
+          toEmail: mailboxForm.toEmail.trim() || null,
+          body: mailboxForm.body.trim(),
+          outreachId: mailboxForm.outreachId || null,
+        }),
+      });
+      const payload = (await response.json()) as unknown;
+
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload, "Failed to import inbound email"));
+      }
+
+      setMailboxForm(initialMailboxForm);
+      setMailboxMessage("Inbound email imported and classified.");
+      await loadMailbox();
+    } catch (importError) {
+      setMailboxError(importError instanceof Error ? importError.message : "Failed to import inbound email");
+    } finally {
+      setImportingInbound(false);
+    }
+  }
+
+  async function handleSuggestReply(threadId: string) {
+    if (!organizationId) {
+      return;
+    }
+
+    setSuggestingThreadId(threadId);
+    setMailboxError(null);
+    setMailboxMessage(null);
+
+    try {
+      const response = await fetch(`/api/mailbox/${threadId}/suggest-reply`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({}),
+      });
+      const payload = (await response.json()) as unknown;
+
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload, "Failed to suggest reply"));
+      }
+
+      setMailboxMessage("Suggested reply generated from the CRM response-draft prompt.");
+      await loadMailbox();
+    } catch (suggestError) {
+      setMailboxError(suggestError instanceof Error ? suggestError.message : "Failed to suggest reply");
+    } finally {
+      setSuggestingThreadId(null);
+    }
+  }
+
+  async function handleThreadStatus(threadId: string, status: string) {
+    if (!organizationId) {
+      return;
+    }
+
+    setMailboxError(null);
+    setMailboxMessage(null);
+
+    try {
+      const response = await fetch(`/api/mailbox/${threadId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({ status }),
+      });
+      const payload = (await response.json()) as unknown;
+
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload, "Failed to update mailbox thread"));
+      }
+
+      setMailboxMessage(`Thread marked ${status}.`);
+      await loadMailbox();
+    } catch (statusError) {
+      setMailboxError(statusError instanceof Error ? statusError.message : "Failed to update mailbox thread");
+    }
+  }
+
   async function handleDelete(outreachId: string) {
     if (!organizationId) {
       return;
@@ -232,7 +444,7 @@ export default function OutreachPage() {
     <div className="p-6 lg:p-8">
       <PageHeader
         title="Outreach"
-        description="Track emails, calls, meetings, and follow-up touchpoints."
+        description="Track outreach, review inbound mailbox threads, and generate suggested replies."
         action={
           <input
             className="w-72 max-w-full px-3 py-2 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white placeholder:text-gray-400"
@@ -243,6 +455,209 @@ export default function OutreachPage() {
         }
       />
 
+      <div className="mb-6 flex flex-wrap gap-2">
+        {[
+          { id: "mailbox", label: "Mailbox + Suggested Replies" },
+          { id: "log", label: "Outreach Log" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            className={classNames(
+              "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+              activeTab === tab.id
+                ? "bg-indigo-600 text-white"
+                : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-800 dark:hover:bg-gray-800",
+            )}
+            onClick={() => setActiveTab(tab.id as "log" | "mailbox")}
+            type="button"
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "mailbox" && (
+        <div className="space-y-6">
+          <form
+            onSubmit={handleImportInbound}
+            className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5"
+          >
+            <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Mailbox Intake</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
+                  Manual mailbox import now; Gmail sync can plug into these same thread/message records later.
+                </p>
+              </div>
+              <button
+                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                disabled={!organizationId || loadingMailbox}
+                onClick={() => void loadMailbox()}
+                type="button"
+              >
+                Refresh Mailbox
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+              <input
+                className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+                placeholder="Subject"
+                value={mailboxForm.subject}
+                onChange={(event) => setMailboxForm((current) => ({ ...current, subject: event.target.value }))}
+                required
+              />
+              <input
+                className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+                placeholder="From email"
+                value={mailboxForm.fromEmail}
+                onChange={(event) => setMailboxForm((current) => ({ ...current, fromEmail: event.target.value }))}
+              />
+              <select
+                className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+                value={mailboxForm.outreachId}
+                onChange={(event) => setMailboxForm((current) => ({ ...current, outreachId: event.target.value }))}
+              >
+                <option value="">Link to outreach item</option>
+                {outreach.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.subject || "Untitled outreach"}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled={!organizationId || importingInbound || !mailboxForm.subject.trim() || !mailboxForm.body.trim()}
+                type="submit"
+              >
+                {importingInbound ? "Importing..." : "Import Inbound Email"}
+              </button>
+            </div>
+            <textarea
+              className="mt-3 w-full min-h-24 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+              placeholder="Paste inbound email body"
+              value={mailboxForm.body}
+              onChange={(event) => setMailboxForm((current) => ({ ...current, body: event.target.value }))}
+              required
+            />
+          </form>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[420px_1fr]">
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
+              <div className="border-b border-gray-200 dark:border-gray-800 p-4">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <input
+                    className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+                    placeholder="Search mailbox"
+                    value={mailboxSearch}
+                    onChange={(event) => setMailboxSearch(event.target.value)}
+                  />
+                  <select
+                    className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+                    value={mailboxClassification}
+                    onChange={(event) => setMailboxClassification(event.target.value)}
+                  >
+                    <option value="">All classifications</option>
+                    <option value="interested">interested</option>
+                    <option value="pricing_request">pricing_request</option>
+                    <option value="meeting_request">meeting_request</option>
+                    <option value="question">question</option>
+                    <option value="not_interested">not_interested</option>
+                    <option value="unsubscribe">unsubscribe</option>
+                    <option value="unknown">unknown</option>
+                  </select>
+                </div>
+              </div>
+              {threads.map((thread) => (
+                <button
+                  key={thread.id}
+                  className={classNames(
+                    "block w-full border-b border-gray-100 px-4 py-4 text-left transition-colors dark:border-gray-800",
+                    selectedThread?.id === thread.id ? "bg-indigo-50 dark:bg-indigo-950/30" : "hover:bg-gray-50 dark:hover:bg-gray-800/50",
+                  )}
+                  onClick={() => setSelectedThreadId(thread.id)}
+                  type="button"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">{thread.subject}</p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
+                        {thread.company?.name ?? thread.contact?.email ?? "Unlinked mailbox thread"}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                      {thread.classification ?? "unknown"}
+                    </span>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-sm text-gray-500 dark:text-gray-500">
+                    {thread.messages.at(-1)?.body ?? "No messages"}
+                  </p>
+                </button>
+              ))}
+              {!loadingMailbox && threads.length === 0 && (
+                <div className="p-6 text-sm text-gray-500 dark:text-gray-500">No mailbox threads found.</div>
+              )}
+            </div>
+
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5">
+              {selectedThread ? (
+                <div>
+                  <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white">{selectedThread.subject}</h3>
+                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
+                        Status: {selectedThread.status} · Classification: {selectedThread.classification ?? "unknown"}
+                        {selectedThread.outreach ? ` · Linked outreach: ${selectedThread.outreach.subject ?? "Untitled"}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                        disabled={suggestingThreadId === selectedThread.id}
+                        onClick={() => void handleSuggestReply(selectedThread.id)}
+                        type="button"
+                      >
+                        {suggestingThreadId === selectedThread.id ? "Suggesting..." : "Suggest Reply"}
+                      </button>
+                      <button
+                        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                        onClick={() => void handleThreadStatus(selectedThread.id, "done")}
+                        type="button"
+                      >
+                        Mark Done
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {selectedThread.messages.map((message) => (
+                      <div key={message.id} className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-500">
+                          <span>{message.direction} · {message.fromEmail ?? "unknown sender"} · {formatDate(message.receivedAt ?? message.sentAt ?? message.createdAt)}</span>
+                          <span>{message.classification ?? "unknown"}</span>
+                        </div>
+                        <p className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">{message.body}</p>
+                        {message.suggestedBody && (
+                          <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Suggested Reply</p>
+                            <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">{message.suggestedSubject}</p>
+                            <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{message.suggestedBody}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500 dark:text-gray-500">Select a mailbox thread.</div>
+              )}
+            </div>
+          </div>
+          {mailboxMessage && <div className="text-sm text-emerald-600 dark:text-emerald-400">{mailboxMessage}</div>}
+          {mailboxError && <div className="text-sm text-red-600 dark:text-red-400">{mailboxError}</div>}
+        </div>
+      )}
+
+      {activeTab === "log" && (
       <form
         onSubmit={handleCreate}
         className="mb-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5"
@@ -313,20 +728,21 @@ export default function OutreachPage() {
           onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))}
         />
       </form>
+      )}
 
-      {!organizationId && (
+      {activeTab === "log" && !organizationId && (
         <div className="text-sm text-gray-500 dark:text-gray-400">Enter an organization ID to load outreach.</div>
       )}
 
-      {error && <div className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</div>}
+      {activeTab === "log" && error && <div className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</div>}
 
-      {loading && <div className="text-sm text-gray-500 dark:text-gray-400">Loading outreach...</div>}
+      {activeTab === "log" && loading && <div className="text-sm text-gray-500 dark:text-gray-400">Loading outreach...</div>}
 
-      {!loading && organizationId && outreach.length === 0 && (
+      {activeTab === "log" && !loading && organizationId && outreach.length === 0 && (
         <div className="text-sm text-gray-500 dark:text-gray-400">No outreach found.</div>
       )}
 
-      {!loading && organizationId && outreach.length > 0 && (
+      {activeTab === "log" && !loading && organizationId && outreach.length > 0 && (
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

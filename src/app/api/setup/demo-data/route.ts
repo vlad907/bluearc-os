@@ -270,7 +270,7 @@ export async function POST(request: Request) {
         },
       });
 
-      await tx.outreach.create({
+      const outreach = await tx.outreach.create({
         data: {
           organizationId,
           companyId: customer.id,
@@ -284,6 +284,34 @@ export async function POST(request: Request) {
           body: "Thanks for discussing the Wi-Fi refresh. We will send next steps after the site survey.",
           sentAt: new Date(),
           metadata: { demo: true },
+        },
+      });
+
+      await tx.emailThread.create({
+        data: {
+          organizationId,
+          companyId: customer.id,
+          contactId: contact.id,
+          leadId: lead.id,
+          outreachId: outreach.id,
+          subject: "Re: Follow-up on managed Wi-Fi refresh",
+          status: "needs_reply",
+          classification: "meeting_request",
+          lastMessageAt: new Date(),
+          metadata: { demo: true },
+          messages: {
+            create: {
+              organizationId,
+              direction: "inbound",
+              fromEmail: "morgan.lee@example.com",
+              toEmail: "hello@bluearc.example.com",
+              subject: "Re: Follow-up on managed Wi-Fi refresh",
+              body: "Thanks for reaching out. We are interested in the site survey. Do you have time for a quick call this week?",
+              classification: "meeting_request",
+              receivedAt: new Date(),
+              metadata: { demo: true },
+            },
+          },
         },
       });
 
@@ -302,6 +330,7 @@ export async function POST(request: Request) {
         vendors: 1,
         jobs: 1,
         outreach: 1,
+        mailboxThreads: 1,
       };
     });
 

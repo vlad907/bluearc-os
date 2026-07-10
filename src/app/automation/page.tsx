@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
 import { useOrganization } from "@/context/OrganizationContext";
@@ -297,7 +298,7 @@ export default function AutomationPage() {
             </button>
           </div>
           <p className="mt-3 text-xs text-gray-500 dark:text-gray-500">
-            Gmail sending, AI classification, and background workers from the old app are intentionally not copied yet. This page starts with the review queue using current Postgres data.
+            Draft outreach and inbound mailbox replies now live under <Link className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline" href="/outreach">Outreach</Link>. Gmail sync can plug into that mailbox model later.
           </p>
           {message && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{message}</p>}
           {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
