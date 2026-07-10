@@ -30,7 +30,8 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Agent 2/Agent 3 draft workflow: lead-level deterministic draft generation, verifier checks, EmailDraft persistence, and Automation review queue approve/reject/mark-sent actions.
 - Partnership workflow: PartnerCandidate model, manual partner candidate import, deterministic partnership fit analysis, fit scoring, contact extraction, and conversion to Company/Lead/Task.
 - Integration credential setup: IntegrationCredential model and Settings panel for OpenAI, Anthropic, and Gmail OAuth env-var references without storing raw secrets in Postgres.
-- Provider-backed agent execution: Agent 1, Agent 2, and Agent 3 now attempt configured OpenAI/Anthropic JSON execution first and fall back to deterministic local output if credentials are missing or provider output fails validation.
+- Provider-backed agent execution: Agent 1, Agent 2, and Agent 3 now attempt configured local OpenAI-compatible, OpenAI, or Anthropic JSON execution first and fall back to deterministic local output if credentials are missing or provider output fails validation.
+- Local model support: `local_openai` provider for LM Studio/Ollama/vLLM/llama.cpp-style OpenAI-compatible endpoints, attempted before paid providers when configured.
 
 ## Key Original Features Not Yet Fully Ported
 
@@ -55,7 +56,7 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 - Next.js route handlers for app APIs.
 - Prisma/PostgreSQL models and migrations.
 - Prompt catalog from `src/lib/ai/crm-agent-prompts.ts` as the source of agent instructions.
-- Provider adapters for OpenAI/Anthropic behind app-native server routes.
+- Provider adapters for local OpenAI-compatible endpoints, OpenAI, and Anthropic behind app-native server routes.
 - Gmail integration as app-native OAuth and background jobs after auth/workspace identity is stabilized.
 
 ## Recommended Next Merge Passes
@@ -65,3 +66,13 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 3. Add Gmail OAuth connect/callback, draft creation, send, and inbox sync.
 4. Add encrypted OAuth token storage before any real Gmail account tokens are persisted.
 5. Add observability for fallback reasons and provider failures.
+
+## Future Model Consistency Work
+
+Do not jump directly to fine-tuning. First build an evaluation and schema-validation layer:
+
+- Define strict JSON schemas for Agent 1 research, Agent 2 drafts, Agent 3 verifier output, partnership fit, and reply drafting.
+- Add 20-50 golden examples from real Blue Arc workflows: input context, expected JSON, and acceptable wording constraints.
+- Add an evaluation runner that tests deterministic, local model, OpenAI, and Anthropic outputs for valid JSON, no hallucinated claims, no placeholders, correct CTA, and verifier decision accuracy.
+- Add one retry pass that feeds schema validation errors back to the model before falling back.
+- Revisit fine-tuning or local LoRA only after the evals identify repeatable failure patterns.

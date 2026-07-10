@@ -186,6 +186,7 @@ All findings are architectural recommendations for future implementation. None b
 - Added PartnerCandidate persistence plus Partnerships UI for candidate import, deterministic fit analysis, contact extraction, and conversion into partner company, lead, and task records.
 - Added IntegrationCredential persistence and Settings UI for OpenAI, Anthropic, and Gmail OAuth environment-variable references without storing raw secrets in the database.
 - Added provider-backed Agent 1/2/3 execution path for configured OpenAI/Anthropic credentials with deterministic fallback and fallback metadata.
+- Added local OpenAI-compatible model provider support so LM Studio/Ollama/vLLM/llama.cpp endpoints can run agents before paid providers.
 
 ## Validation Results
 

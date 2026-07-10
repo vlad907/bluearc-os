@@ -7,9 +7,10 @@ import { Agent2DraftInput, Agent2DraftOutput, Agent3VerifierOutput, DraftMode } 
 type JsonObject = Record<string, unknown>;
 
 type AiProvider = {
-  provider: "openai" | "anthropic";
+  provider: "openai" | "anthropic" | "local_openai";
   apiKey: string;
   model: string;
+  baseUrl?: string;
 };
 
 function asJsonObject(value: unknown) {
@@ -76,27 +77,50 @@ function extractAnthropicText(payload: unknown) {
   return "";
 }
 
+function extractChatCompletionText(payload: unknown) {
+  const objectPayload = asJsonObject(payload);
+  const choices = Array.isArray(objectPayload?.choices) ? objectPayload.choices : [];
+  const firstChoice = asJsonObject(choices[0]);
+  const message = asJsonObject(firstChoice?.message);
+
+  return readString(message?.content);
+}
+
 async function getConfiguredAiProvider(organizationId: string): Promise<AiProvider | null> {
   const credentials = await prisma.integrationCredential.findMany({
     where: {
       organizationId,
       kind: "ai_provider",
       status: { in: ["configured", "connected"] },
-      provider: { in: ["openai", "anthropic"] },
+      provider: { in: ["local_openai", "openai", "anthropic"] },
     },
     orderBy: { provider: "desc" },
   });
 
-  for (const credential of credentials) {
-    const apiKey = credential.envKeyName ? process.env[credential.envKeyName] : undefined;
-    if (!apiKey) {
+  const sortedCredentials = credentials.sort((left, right) => {
+    const priority = { local_openai: 0, openai: 1, anthropic: 2, google_gmail: 3, google_oauth: 4 };
+    return priority[left.provider] - priority[right.provider];
+  });
+
+  for (const credential of sortedCredentials) {
+    const envValue = credential.envKeyName ? process.env[credential.envKeyName] : undefined;
+    if (!envValue) {
       continue;
+    }
+
+    if (credential.provider === "local_openai") {
+      return {
+        provider: "local_openai",
+        apiKey: credential.envSecretName ? process.env[credential.envSecretName] ?? "local" : "local",
+        baseUrl: envValue.replace(/\/$/, ""),
+        model: process.env.LOCAL_LLM_MODEL ?? "local-model",
+      };
     }
 
     if (credential.provider === "openai") {
       return {
         provider: "openai",
-        apiKey,
+        apiKey: envValue,
         model: process.env.OPENAI_MODEL ?? "gpt-5.2",
       };
     }
@@ -104,7 +128,7 @@ async function getConfiguredAiProvider(organizationId: string): Promise<AiProvid
     if (credential.provider === "anthropic") {
       return {
         provider: "anthropic",
-        apiKey,
+        apiKey: envValue,
         model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5",
       };
     }
@@ -151,6 +175,43 @@ async function callOpenAiJson(provider: AiProvider, systemPrompt: string, userPr
   return object;
 }
 
+async function callLocalOpenAiJson(provider: AiProvider, systemPrompt: string, userPrompt: string) {
+  if (!provider.baseUrl) {
+    throw new Error("Local provider is missing base URL");
+  }
+
+  const response = await fetch(`${provider.baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${provider.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: provider.model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Local OpenAI-compatible endpoint returned ${response.status}`);
+  }
+
+  const payload = await response.json() as unknown;
+  const text = extractChatCompletionText(payload);
+  const object = parseJsonObject(text);
+
+  if (!object) {
+    throw new Error("Local OpenAI-compatible endpoint returned non-JSON output");
+  }
+
+  return object;
+}
+
 async function callAnthropicJson(provider: AiProvider, systemPrompt: string, userPrompt: string) {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -189,9 +250,12 @@ async function callConfiguredJsonAgent(organizationId: string, systemPrompt: str
     return null;
   }
 
-  const output = provider.provider === "openai"
-    ? await callOpenAiJson(provider, systemPrompt, userPrompt)
-    : await callAnthropicJson(provider, systemPrompt, userPrompt);
+  const output =
+    provider.provider === "local_openai"
+      ? await callLocalOpenAiJson(provider, systemPrompt, userPrompt)
+      : provider.provider === "openai"
+        ? await callOpenAiJson(provider, systemPrompt, userPrompt)
+        : await callAnthropicJson(provider, systemPrompt, userPrompt);
 
   return {
     provider: provider.provider,

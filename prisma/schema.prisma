@@ -162,6 +162,7 @@ enum PartnershipType {
 enum IntegrationProvider {
   openai
   anthropic
+  local_openai
   google_gmail
   google_oauth
 }

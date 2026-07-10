@@ -1,4 +1,4 @@
-export const integrationProviders = ["openai", "anthropic", "google_gmail", "google_oauth"] as const;
+export const integrationProviders = ["openai", "anthropic", "local_openai", "google_gmail", "google_oauth"] as const;
 export const integrationKinds = ["ai_provider", "oauth_app", "oauth_connection"] as const;
 
 export type IntegrationProvider = (typeof integrationProviders)[number];
@@ -29,6 +29,10 @@ export function defaultCredentialLabel(provider: IntegrationProvider, kind: Inte
 
   if (provider === "anthropic") {
     return "Anthropic";
+  }
+
+  if (provider === "local_openai") {
+    return "Local OpenAI-Compatible Model";
   }
 
   if (provider === "google_gmail") {

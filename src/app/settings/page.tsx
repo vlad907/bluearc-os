@@ -7,7 +7,7 @@ import { useTheme } from "@/context/ThemeContext";
 
 type IntegrationCredential = {
   id: string;
-  provider: "openai" | "anthropic" | "google_gmail" | "google_oauth";
+  provider: "openai" | "anthropic" | "local_openai" | "google_gmail" | "google_oauth";
   kind: "ai_provider" | "oauth_app" | "oauth_connection";
   status: "configured" | "missing_env" | "invalid" | "connected" | "disabled";
   label: string | null;
@@ -46,6 +46,15 @@ const credentialPresets: CredentialPreset[] = [
     envSecretName: "",
     scopes: [],
     description: "Alternative provider for high-quality outreach drafts.",
+  },
+  {
+    provider: "local_openai",
+    kind: "ai_provider",
+    label: "Local OpenAI-Compatible Model",
+    envKeyName: "LOCAL_LLM_BASE_URL",
+    envSecretName: "LOCAL_LLM_API_KEY",
+    scopes: [],
+    description: "LM Studio, Ollama, vLLM, llama.cpp, or any local OpenAI-compatible endpoint. Used before paid providers when configured.",
   },
   {
     provider: "google_gmail",
