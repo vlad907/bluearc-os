@@ -126,6 +126,21 @@ enum OutreachStatus {
   cancelled
 }
 
+enum EmailDraftStatus {
+  draft
+  needs_review
+  approved
+  rejected
+  sent
+}
+
+enum EmailDraftMode {
+  signal
+  fallback
+  soft
+  partnership
+}
+
 // ─── MODELS ────────────────────────────────────────────────────────────────────
 
 model Organization {
@@ -144,6 +159,7 @@ model Organization {
   vendors             Vendor[]
   jobs                Job[]
   outreach            Outreach[]
+  emailDrafts         EmailDraft[]
   emailThreads        EmailThread[]
   emailMessages       EmailMessage[]
   workspaceProfile    WorkspaceProfile?
@@ -178,6 +194,7 @@ model Company {
   vendors           Vendor[]
   jobs              Job[]
   outreach          Outreach[]
+  emailDrafts       EmailDraft[]
   emailThreads      EmailThread[]
   websiteSnapshots  WebsiteSnapshot[]
   websitePages      WebsitePage[]
@@ -210,6 +227,7 @@ model Contact {
   leads             Lead[]
   jobs              Job[]
   outreach          Outreach[]
+  emailDrafts       EmailDraft[]
   emailThreads      EmailThread[]
   websiteSnapshots  WebsiteSnapshot[]
   websitePages      WebsitePage[]
@@ -243,6 +261,7 @@ model Lead {
   company           Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
   jobs              Job[]
   outreach          Outreach[]
+  emailDrafts       EmailDraft[]
   emailThreads      EmailThread[]
   websiteSnapshots  WebsiteSnapshot[]
   websitePages      WebsitePage[]
@@ -374,6 +393,7 @@ model Outreach {
   contact      Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
   lead         Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
   job          Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  emailDrafts  EmailDraft[]
   emailThreads EmailThread[]
 
   @@index([organizationId])
@@ -385,6 +405,51 @@ model Outreach {
   @@index([status])
   @@index([scheduledAt])
   @@map("outreach")
+}
+
+model EmailDraft {
+  id                   String           @id @default(uuid())
+  organizationId       String
+  outreachId           String?
+  companyId            String?
+  contactId            String?
+  leadId               String?
+  mode                 EmailDraftMode   @default(signal)
+  status               EmailDraftStatus @default(needs_review)
+  subject              String
+  body                 String
+  usedSignal           String?
+  verifierDecision     String?
+  verifierReason       String?
+  verifierEditedBody   String?
+  agent2Output         Json?
+  agent3Output         Json?
+  promptKey            String
+  promptSource         String
+  verifierPromptKey    String?
+  verifierPromptSource String?
+  approvedAt           DateTime?
+  rejectedAt           DateTime?
+  sentAt               DateTime?
+  gmailDraftId         String?
+  metadata             Json?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  outreach     Outreach?    @relation(fields: [outreachId], references: [id], onDelete: SetNull)
+  company      Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact      Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([outreachId])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([leadId])
+  @@index([status])
+  @@index([mode])
+  @@map("email_drafts")
 }
 
 model EmailThread {

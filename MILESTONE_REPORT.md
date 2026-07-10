@@ -182,6 +182,7 @@ All findings are architectural recommendations for future implementation. None b
 - Added Outreach mailbox threads/messages, manual inbound intake, classification filters, linked outreach context, and suggested replies.
 - Added Workspace Profile and AI Strategy context storage plus Settings UI for sender signature, tone, CTA, target categories, pain points, and guardrails.
 - Added lead website research ingestion with WebsiteSnapshot/WebsitePage storage, extracted emails/phones, and persisted deterministic Agent 1 research output using the preserved CRM Command prompt metadata.
+- Added EmailDraft persistence plus deterministic Agent 2 draft generation and Agent 3 verification, with Automation queue review actions for approve/reject/mark sent.
 
 ## Validation Results
 

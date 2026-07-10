@@ -37,6 +37,14 @@ type LeadResearchResponse = LeadsResponse & {
   };
 };
 
+type DraftResponse = LeadsResponse & {
+  emailDraft?: {
+    id: string;
+    subject: string;
+    verifierDecision: string | null;
+  };
+};
+
 const stageColors: Record<LeadStage, string> = {
   new: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
   evaluating: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
@@ -107,6 +115,7 @@ export default function LeadsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [researchingId, setResearchingId] = useState<string | null>(null);
+  const [draftingId, setDraftingId] = useState<string | null>(null);
   const [researchUrls, setResearchUrls] = useState<Record<string, string>>({});
   const [researchMessage, setResearchMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -308,6 +317,38 @@ export default function LeadsPage() {
     }
   }
 
+  async function handleGenerateDraft(lead: Lead) {
+    if (!organizationId) {
+      return;
+    }
+
+    setDraftingId(lead.id);
+    setResearchMessage(null);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/leads/${lead.id}/generate-draft`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({ mode: getLeadResearchSummary(lead) ? "signal" : "soft" }),
+      });
+      const payload = (await response.json()) as DraftResponse;
+
+      if (!response.ok || !payload.emailDraft) {
+        throw new Error(getApiError(payload, "Failed to generate draft"));
+      }
+
+      setResearchMessage(`Draft ready for review: ${payload.emailDraft.subject}`);
+    } catch (draftError) {
+      setError(draftError instanceof Error ? draftError.message : "Failed to generate draft");
+    } finally {
+      setDraftingId(null);
+    }
+  }
+
   return (
     <div className="p-6 lg:p-8">
       <PageHeader
@@ -478,6 +519,14 @@ export default function LeadsPage() {
                         type="button"
                       >
                         {researchingId === lead.id ? "Running..." : "Ingest + Agent 1"}
+                      </button>
+                      <button
+                        className="whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                        disabled={draftingId === lead.id}
+                        onClick={() => handleGenerateDraft(lead)}
+                        type="button"
+                      >
+                        {draftingId === lead.id ? "Drafting..." : "Agent 2/3 Draft"}
                       </button>
                     </div>
                     {researchSummary?.confidence !== null && researchSummary?.confidence !== undefined && (

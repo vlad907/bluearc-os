@@ -27,6 +27,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Outreach mailbox: thread/message models, manual inbound email import, classification filters, linked outreach records, and deterministic suggested replies using the preserved response-draft prompt metadata.
 - Workspace profile and AI strategy context: business profile, sender signature fields, tone/CTA preferences, target categories, priority pain points, and guardrail notes.
 - Website ingestion and Agent 1 research: lead-level website snapshots/pages, extracted emails/phones, persisted Agent 1 structured output, and a Leads table action that runs ingestion plus research.
+- Agent 2/Agent 3 draft workflow: lead-level deterministic draft generation, verifier checks, EmailDraft persistence, and Automation review queue approve/reject/mark-sent actions.
 
 ## Key Original Features Not Yet Fully Ported
 
@@ -34,9 +35,9 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Partnership search via web search and candidate ranking.
 - Multi-page website crawling beyond the manually submitted URL.
 - Provider-backed Agent 1 AI execution. A deterministic app-native Agent 1 pass now persists the old structured output shape and prompt provenance.
-- Agent 2 draft generation via Anthropic/OpenAI with workspace strategy context.
-- Agent 3 draft verification and send/hold review queue.
-- Email draft model with review status, Gmail draft IDs, sent metadata, and agent outputs.
+- Provider-backed Agent 2 draft generation via Anthropic/OpenAI with workspace strategy context. A deterministic app-native draft path now exists.
+- Provider-backed Agent 3 verification. A deterministic verifier and review queue now exist.
+- Gmail draft creation from approved EmailDraft records.
 - Gmail OAuth, draft creation, send-as aliases, inbox sync, and reply sending.
 - Full inbox sync, AI classification, and approve/reject reply actions. Basic mailbox thread/message storage and suggested reply generation are now present.
 - API key credential storage/onboarding flow.
@@ -57,8 +58,8 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 
 ## Recommended Next Merge Passes
 
-1. Add Prisma models for email drafts, partner candidates, and integration credentials.
+1. Add Prisma models for partner candidates and integration credentials.
 2. Add credential settings for AI keys and Google API/OAuth credentials.
 3. Upgrade deterministic Agent 1 research to provider-backed execution using the preserved prompt catalog.
-4. Implement Agent 2/Agent 3 draft generation and verification with review queue integration.
+4. Upgrade deterministic Agent 2/Agent 3 draft generation and verification to provider-backed execution.
 5. Add Gmail OAuth/draft/send/inbox sync after credential encryption and auth are in place.

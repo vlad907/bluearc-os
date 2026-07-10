@@ -35,9 +35,22 @@ type Outreach = {
   sentAt: string | null;
 };
 
+type EmailDraft = {
+  id: string;
+  status: "draft" | "needs_review" | "approved" | "rejected" | "sent";
+  subject: string;
+  body: string;
+  usedSignal: string | null;
+  verifierDecision: string | null;
+  verifierReason: string | null;
+  createdAt: string;
+  lead: { id: string; title: string } | null;
+  company: { id: string; name: string } | null;
+};
+
 type QueueItem = {
   id: string;
-  type: "task" | "outreach" | "lead";
+  type: "task" | "outreach" | "lead" | "emailDraft";
   title: string;
   status: string;
   priority: "low" | "medium" | "high" | "urgent";
@@ -48,6 +61,8 @@ type ApiPayload = {
   leads?: Lead[];
   tasks?: Task[];
   outreach?: Outreach[];
+  emailDrafts?: EmailDraft[];
+  emailDraft?: EmailDraft;
   task?: Task;
   error?: string;
   errors?: string[];
@@ -123,6 +138,7 @@ export default function AutomationPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [outreach, setOutreach] = useState<Outreach[]>([]);
+  const [emailDrafts, setEmailDrafts] = useState<EmailDraft[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -137,15 +153,17 @@ export default function AutomationPage() {
     setError(null);
 
     try {
-      const [leadPayload, taskPayload, outreachPayload] = await Promise.all([
+      const [leadPayload, taskPayload, outreachPayload, draftPayload] = await Promise.all([
         fetchJson("/api/leads", organizationId),
         fetchJson("/api/tasks", organizationId),
         fetchJson("/api/outreach", organizationId),
+        fetchJson("/api/email-drafts", organizationId),
       ]);
 
       setLeads(leadPayload.leads ?? []);
       setTasks(taskPayload.tasks ?? []);
       setOutreach(outreachPayload.outreach ?? []);
+      setEmailDrafts(draftPayload.emailDrafts ?? []);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load automation data");
     } finally {
@@ -184,6 +202,17 @@ export default function AutomationPage() {
         detail: item.body || formatDate(item.scheduledAt),
       }));
 
+    const draftItems = emailDrafts
+      .filter((draft) => draft.status === "needs_review" || draft.status === "approved")
+      .map((draft) => ({
+        id: draft.id,
+        type: "emailDraft" as const,
+        title: draft.subject,
+        status: draft.verifierDecision ? `${draft.status} · verifier: ${draft.verifierDecision}` : draft.status,
+        priority: draft.verifierDecision === "hold" ? "urgent" as const : "high" as const,
+        detail: draft.verifierReason || draft.usedSignal || draft.body,
+      }));
+
     const leadItems = leads
       .filter((lead) => lead.stage === "evaluating" || lead.stage === "bidding" || lead.stage === "submitted")
       .map((lead) => ({
@@ -195,17 +224,18 @@ export default function AutomationPage() {
         detail: `${lead.probability ?? 0}% probability`,
       }));
 
-    return [...outreachItems, ...taskItems, ...leadItems];
-  }, [leads, tasks, outreach]);
+    return [...draftItems, ...outreachItems, ...taskItems, ...leadItems];
+  }, [leads, tasks, outreach, emailDrafts]);
 
   const summary = useMemo(() => {
     return {
       queue: queueItems.length,
       draftOutreach: outreach.filter((item) => item.status === "draft").length,
+      draftReviews: emailDrafts.filter((draft) => draft.status === "needs_review").length,
       activeTasks: tasks.filter((task) => task.status === "todo" || task.status === "in_progress").length,
       hotLeads: leads.filter((lead) => lead.stage === "bidding" || lead.stage === "submitted").length,
     };
-  }, [queueItems.length, outreach, tasks, leads]);
+  }, [queueItems.length, outreach, emailDrafts, tasks, leads]);
 
   async function markTaskDone(taskId: string) {
     if (!organizationId) {
@@ -253,6 +283,31 @@ export default function AutomationPage() {
     }
   }
 
+  async function updateEmailDraft(draftId: string, action: "approve" | "reject" | "sent") {
+    if (!organizationId) {
+      return;
+    }
+
+    setActionId(draftId);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const payload = await patchJson(`/api/email-drafts/${draftId}`, organizationId, { action });
+      setMessage(`Email draft ${action === "sent" ? "marked sent" : `${action}d`}.`);
+      if (payload.emailDraft) {
+        setEmailDrafts((current) => current.map((draft) => (
+          draft.id === draftId ? payload.emailDraft as EmailDraft : draft
+        )));
+      }
+      await loadAutomationData();
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : "Failed to update email draft");
+    } finally {
+      setActionId(null);
+    }
+  }
+
   return (
     <div className="p-6 lg:p-8">
       <PageHeader
@@ -262,11 +317,12 @@ export default function AutomationPage() {
 
       <div className="space-y-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          {[
-            { label: "Queue Items", value: summary.queue },
-            { label: "Draft Outreach", value: summary.draftOutreach },
-            { label: "Active Tasks", value: summary.activeTasks },
-            { label: "Hot Leads", value: summary.hotLeads },
+            {[
+              { label: "Queue Items", value: summary.queue },
+              { label: "Draft Reviews", value: summary.draftReviews },
+              { label: "Draft Outreach", value: summary.draftOutreach },
+              { label: "Active Tasks", value: summary.activeTasks },
+              { label: "Hot Leads", value: summary.hotLeads },
           ].map((item) => (
             <div key={item.label} className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
               <p className="text-sm text-gray-500 dark:text-gray-500">{item.label}</p>
@@ -344,6 +400,34 @@ export default function AutomationPage() {
                     >
                       Mark Sent
                     </button>
+                  )}
+                  {item.type === "emailDraft" && (
+                    <>
+                      <button
+                        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                        disabled={actionId === item.id}
+                        onClick={() => void updateEmailDraft(item.id, "approve")}
+                        type="button"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+                        disabled={actionId === item.id}
+                        onClick={() => void updateEmailDraft(item.id, "sent")}
+                        type="button"
+                      >
+                        Mark Sent
+                      </button>
+                      <button
+                        className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950/20"
+                        disabled={actionId === item.id}
+                        onClick={() => void updateEmailDraft(item.id, "reject")}
+                        type="button"
+                      >
+                        Reject
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
