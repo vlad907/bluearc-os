@@ -28,11 +28,12 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Workspace profile and AI strategy context: business profile, sender signature fields, tone/CTA preferences, target categories, priority pain points, and guardrail notes.
 - Website ingestion and Agent 1 research: lead-level website snapshots/pages, extracted emails/phones, persisted Agent 1 structured output, and a Leads table action that runs ingestion plus research.
 - Agent 2/Agent 3 draft workflow: lead-level deterministic draft generation, verifier checks, EmailDraft persistence, and Automation review queue approve/reject/mark-sent actions.
+- Partnership workflow: PartnerCandidate model, manual partner candidate import, deterministic partnership fit analysis, fit scoring, contact extraction, and conversion to Company/Lead/Task.
 
 ## Key Original Features Not Yet Fully Ported
 
 - Local business discovery via Google Places, geocoding, radius/category search.
-- Partnership search via web search and candidate ranking.
+- Provider-backed partnership web search. Manual partner candidate import and deterministic candidate ranking now exist.
 - Multi-page website crawling beyond the manually submitted URL.
 - Provider-backed Agent 1 AI execution. A deterministic app-native Agent 1 pass now persists the old structured output shape and prompt provenance.
 - Provider-backed Agent 2 draft generation via Anthropic/OpenAI with workspace strategy context. A deterministic app-native draft path now exists.
@@ -43,7 +44,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - API key credential storage/onboarding flow.
 - Workspace AI strategy generation from profile. Profile storage, selected target categories, pain points, CTA style, and guardrails are now present.
 - Background pipeline worker for imported → research → draft → verify → draft/send progression.
-- Partner candidate model, fit score, contact emails, contact form URL, status transitions, and conversion to leads.
+- Automated partner search sourcing from live web search APIs. Partner candidate storage, fit score, contact emails, contact form URL, status transitions, and conversion to leads now exist.
 - Lead pipeline status compatibility: discovered/imported/researching/researched/drafting/draft_ready/needs_review/approved/sent/replied/converted/archived.
 
 ## Integration Direction
@@ -58,8 +59,8 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 
 ## Recommended Next Merge Passes
 
-1. Add Prisma models for partner candidates and integration credentials.
+1. Add Prisma models for integration credentials.
 2. Add credential settings for AI keys and Google API/OAuth credentials.
 3. Upgrade deterministic Agent 1 research to provider-backed execution using the preserved prompt catalog.
 4. Upgrade deterministic Agent 2/Agent 3 draft generation and verification to provider-backed execution.
-5. Add Gmail OAuth/draft/send/inbox sync after credential encryption and auth are in place.
+5. Add live partner web search plus Gmail OAuth/draft/send/inbox sync after credential encryption and auth are in place.

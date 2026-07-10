@@ -141,6 +141,24 @@ enum EmailDraftMode {
   partnership
 }
 
+enum PartnerCandidateStatus {
+  discovered
+  researching
+  qualified
+  contacted
+  converted
+  rejected
+  archived
+}
+
+enum PartnershipType {
+  subcontractor
+  vendor_network
+  referral_partner
+  field_service_partner
+  unknown
+}
+
 // ─── MODELS ────────────────────────────────────────────────────────────────────
 
 model Organization {
@@ -167,6 +185,7 @@ model Organization {
   websiteSnapshots    WebsiteSnapshot[]
   websitePages        WebsitePage[]
   agentResearchRuns   AgentResearchRun[]
+  partnerCandidates   PartnerCandidate[]
 
   @@map("organizations")
 }
@@ -199,6 +218,7 @@ model Company {
   websiteSnapshots  WebsiteSnapshot[]
   websitePages      WebsitePage[]
   agentResearchRuns AgentResearchRun[]
+  partnerCandidates PartnerCandidate[]
 
   @@index([organizationId])
   @@index([status])
@@ -232,6 +252,7 @@ model Contact {
   websiteSnapshots  WebsiteSnapshot[]
   websitePages      WebsitePage[]
   agentResearchRuns AgentResearchRun[]
+  partnerCandidates PartnerCandidate[]
 
   @@index([organizationId])
   @@index([companyId])
@@ -266,6 +287,7 @@ model Lead {
   websiteSnapshots  WebsiteSnapshot[]
   websitePages      WebsitePage[]
   agentResearchRuns AgentResearchRun[]
+  partnerCandidates PartnerCandidate[]
 
   @@index([organizationId])
   @@index([contactId])
@@ -519,6 +541,48 @@ model EmailMessage {
   @@index([receivedAt])
   @@index([sentAt])
   @@map("email_messages")
+}
+
+model PartnerCandidate {
+  id                       String                 @id @default(uuid())
+  organizationId           String
+  companyId                String?
+  contactId                String?
+  leadId                   String?
+  name                     String
+  website                  String?
+  description              String?
+  industry                 String?
+  relevanceReason          String?
+  partnershipType          PartnershipType        @default(unknown)
+  status                   PartnerCandidateStatus @default(discovered)
+  fitScore                 Float?
+  fitReasons               String[]               @default([])
+  recommendedOutreachAngle String?
+  contactEmails            String[]               @default([])
+  contactFormUrl           String?
+  source                   String                 @default("manual_partnership_discovery")
+  promptKey                String?
+  promptSource             String?
+  analyzedAt               DateTime?
+  convertedAt              DateTime?
+  metadata                 Json?
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact      Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([leadId])
+  @@index([status])
+  @@index([partnershipType])
+  @@index([fitScore])
+  @@map("partner_candidates")
 }
 
 model WorkspaceProfile {

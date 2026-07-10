@@ -183,6 +183,7 @@ All findings are architectural recommendations for future implementation. None b
 - Added Workspace Profile and AI Strategy context storage plus Settings UI for sender signature, tone, CTA, target categories, pain points, and guardrails.
 - Added lead website research ingestion with WebsiteSnapshot/WebsitePage storage, extracted emails/phones, and persisted deterministic Agent 1 research output using the preserved CRM Command prompt metadata.
 - Added EmailDraft persistence plus deterministic Agent 2 draft generation and Agent 3 verification, with Automation queue review actions for approve/reject/mark sent.
+- Added PartnerCandidate persistence plus Partnerships UI for candidate import, deterministic fit analysis, contact extraction, and conversion into partner company, lead, and task records.
 
 ## Validation Results
 
