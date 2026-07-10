@@ -7,14 +7,17 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: "LayoutDashboard", href: "/" },
   { id: "companies", label: "Companies", icon: "Building2", href: "/companies" },
   { id: "contacts", label: "Contacts", icon: "Users", href: "/contacts" },
-  { id: "discovery", label: "Discovery", icon: "Search", href: "/discovery" },
   { id: "leads", label: "Leads", icon: "TrendingUp", href: "/leads" },
-  { id: "automation", label: "Automation", icon: "Zap", href: "/automation" },
   { id: "vendors", label: "Vendors", icon: "Truck", href: "/vendors" },
   { id: "jobs", label: "Jobs", icon: "Briefcase", href: "/jobs" },
   { id: "outreach", label: "Outreach", icon: "Mail", href: "/outreach" },
   { id: "tasks", label: "Tasks", icon: "CheckSquare", href: "/tasks" },
   { id: "settings", label: "Settings", icon: "Settings", href: "/settings" },
+];
+
+export const CRM_COMMAND_ITEMS: NavItem[] = [
+  { id: "discovery", label: "Discovery", icon: "Search", href: "/discovery" },
+  { id: "automation", label: "Automation", icon: "Zap", href: "/automation" },
 ];
 
 export const KPI_DATA: KPIData[] = [

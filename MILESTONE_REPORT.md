@@ -177,6 +177,8 @@ All findings are architectural recommendations for future implementation. None b
 - One-click demo CRM data seeding for an empty selected workspace via `/api/setup/demo-data`.
 - Settings page documents PostgreSQL migration, seed, and local development commands.
 - Began CRM Command merge by porting Discovery prospect import and Automation review queue into native Next/Postgres pages.
+- Moved CRM Command routes into a sidebar submenu and preserved original CRM agent prompts in `src/lib/ai/crm-agent-prompts.ts`.
+- Added `docs/CRM_AGENT_FEATURE_AUDIT.md` to track ported vs missing CRM Command capabilities.
 
 ## Validation Results
 
