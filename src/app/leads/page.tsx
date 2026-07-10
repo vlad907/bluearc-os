@@ -18,6 +18,7 @@ type Lead = {
   probability: number | null;
   source: string | null;
   expectedClose: string | null;
+  metadata: Record<string, unknown> | null;
 };
 
 type LeadsResponse = {
@@ -25,6 +26,15 @@ type LeadsResponse = {
   lead?: Lead;
   error?: string;
   errors?: string[];
+};
+
+type LeadResearchResponse = LeadsResponse & {
+  output?: {
+    confidence_score?: number;
+    website_summary?: {
+      one_liner?: string;
+    };
+  };
 };
 
 const stageColors: Record<LeadStage, string> = {
@@ -65,12 +75,40 @@ function formatDate(value: string | null) {
   }).format(new Date(value));
 }
 
+function getLeadWebsiteUrl(lead: Lead) {
+  const websiteUrl = lead.metadata?.websiteUrl;
+  return typeof websiteUrl === "string" ? websiteUrl : "";
+}
+
+function getLeadResearchSummary(lead: Lead) {
+  const output = lead.metadata?.latestAgent1Output;
+
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    return null;
+  }
+
+  const confidence = "confidence_score" in output && typeof output.confidence_score === "number"
+    ? output.confidence_score
+    : null;
+  const websiteSummary = "website_summary" in output && output.website_summary && typeof output.website_summary === "object" && !Array.isArray(output.website_summary)
+    ? output.website_summary
+    : null;
+  const oneLiner = websiteSummary && "one_liner" in websiteSummary && typeof websiteSummary.one_liner === "string"
+    ? websiteSummary.one_liner
+    : null;
+
+  return { confidence, oneLiner };
+}
+
 export default function LeadsPage() {
   const { organizationId, setOrganizationId } = useOrganization();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [researchingId, setResearchingId] = useState<string | null>(null);
+  const [researchUrls, setResearchUrls] = useState<Record<string, string>>({});
+  const [researchMessage, setResearchMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [stage, setStage] = useState<LeadStage>("new");
@@ -213,6 +251,63 @@ export default function LeadsPage() {
     }
   }
 
+  async function handleRunResearch(lead: Lead) {
+    if (!organizationId) {
+      return;
+    }
+
+    const url = (researchUrls[lead.id] ?? getLeadWebsiteUrl(lead)).trim();
+
+    if (!url) {
+      setError("Enter a website URL before running research");
+      return;
+    }
+
+    setResearchingId(lead.id);
+    setResearchMessage(null);
+    setError(null);
+
+    try {
+      const ingestResponse = await fetch(`/api/leads/${lead.id}/ingest-website`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({ url }),
+      });
+      const ingestData = (await ingestResponse.json()) as LeadsResponse;
+
+      if (!ingestResponse.ok) {
+        throw new Error(getApiError(ingestData, "Failed to ingest website"));
+      }
+
+      const agentResponse = await fetch(`/api/leads/${lead.id}/run-agent1`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({}),
+      });
+      const agentData = (await agentResponse.json()) as LeadResearchResponse;
+
+      if (!agentResponse.ok || !agentData.lead) {
+        throw new Error(getApiError(agentData, "Failed to run Agent 1 research"));
+      }
+
+      setLeads((currentLeads) => currentLeads.map((currentLead) => (
+        currentLead.id === lead.id ? agentData.lead as Lead : currentLead
+      )));
+      setResearchUrls((currentUrls) => ({ ...currentUrls, [lead.id]: url }));
+      setResearchMessage(`Agent 1 research complete for ${agentData.lead.title}.`);
+    } catch (researchError) {
+      setError(researchError instanceof Error ? researchError.message : "Failed to run research");
+    } finally {
+      setResearchingId(null);
+    }
+  }
+
   return (
     <div className="p-6 lg:p-8">
       <PageHeader
@@ -292,6 +387,12 @@ export default function LeadsPage() {
         </div>
       )}
 
+      {researchMessage && (
+        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
+          {researchMessage}
+        </div>
+      )}
+
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -302,34 +403,46 @@ export default function LeadsPage() {
                 <th className="text-right px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Value</th>
                 <th className="text-center px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Probability</th>
                 <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Expected Close</th>
+                <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Research</th>
                 <th className="text-right px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {!organizationId && (
                 <tr>
-                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={6}>
+                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={7}>
                     Enter an organization ID to load leads.
                   </td>
                 </tr>
               )}
               {organizationId && loading && (
                 <tr>
-                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={6}>
+                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={7}>
                     Loading leads...
                   </td>
                 </tr>
               )}
               {organizationId && !loading && leads.length === 0 && (
                 <tr>
-                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={6}>
+                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={7}>
                     No leads yet.
                   </td>
                 </tr>
               )}
-              {organizationId && !loading && leads.map((lead) => (
+              {organizationId && !loading && leads.map((lead) => {
+                const researchSummary = getLeadResearchSummary(lead);
+                const websiteUrl = researchUrls[lead.id] ?? getLeadWebsiteUrl(lead);
+
+                return (
                 <tr key={lead.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                  <td className="px-5 py-4 font-medium text-gray-900 dark:text-white">{lead.title}</td>
+                  <td className="px-5 py-4 font-medium text-gray-900 dark:text-white">
+                    <div>{lead.title}</div>
+                    {researchSummary?.oneLiner && (
+                      <div className="mt-1 max-w-xs truncate text-xs font-normal text-gray-500 dark:text-gray-400">
+                        {researchSummary.oneLiner}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-5 py-4">
                     <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${stageColors[lead.stage]}`}>
                       {lead.stage}
@@ -349,6 +462,30 @@ export default function LeadsPage() {
                     )}
                   </td>
                   <td className="px-5 py-4 text-gray-600 dark:text-gray-400">{formatDate(lead.expectedClose)}</td>
+                  <td className="px-5 py-4">
+                    <div className="flex min-w-72 gap-2">
+                      <input
+                        className="min-w-0 flex-1 px-3 py-2 text-xs bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+                        value={websiteUrl}
+                        onChange={(event) => setResearchUrls((currentUrls) => ({ ...currentUrls, [lead.id]: event.target.value }))}
+                        placeholder="https://company.com"
+                        type="url"
+                      />
+                      <button
+                        className="whitespace-nowrap px-3 py-2 text-xs font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                        disabled={researchingId === lead.id}
+                        onClick={() => handleRunResearch(lead)}
+                        type="button"
+                      >
+                        {researchingId === lead.id ? "Running..." : "Ingest + Agent 1"}
+                      </button>
+                    </div>
+                    {researchSummary?.confidence !== null && researchSummary?.confidence !== undefined && (
+                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Confidence {Math.round(researchSummary.confidence * 100)}%
+                      </div>
+                    )}
+                  </td>
                   <td className="px-5 py-4 text-right">
                     <button
                       className="text-sm font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
@@ -360,7 +497,8 @@ export default function LeadsPage() {
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

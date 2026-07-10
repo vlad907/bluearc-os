@@ -148,6 +148,9 @@ model Organization {
   emailMessages       EmailMessage[]
   workspaceProfile    WorkspaceProfile?
   workspaceAiStrategy WorkspaceAiStrategy?
+  websiteSnapshots    WebsiteSnapshot[]
+  websitePages        WebsitePage[]
+  agentResearchRuns   AgentResearchRun[]
 
   @@map("organizations")
 }
@@ -169,13 +172,16 @@ model Company {
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  contacts     Contact[]
-  leads        Lead[]
-  vendors      Vendor[]
-  jobs         Job[]
-  outreach     Outreach[]
-  emailThreads EmailThread[]
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contacts          Contact[]
+  leads             Lead[]
+  vendors           Vendor[]
+  jobs              Job[]
+  outreach          Outreach[]
+  emailThreads      EmailThread[]
+  websiteSnapshots  WebsiteSnapshot[]
+  websitePages      WebsitePage[]
+  agentResearchRuns AgentResearchRun[]
 
   @@index([organizationId])
   @@index([status])
@@ -199,12 +205,15 @@ model Contact {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  company      Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  leads        Lead[]
-  jobs         Job[]
-  outreach     Outreach[]
-  emailThreads EmailThread[]
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company           Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  leads             Lead[]
+  jobs              Job[]
+  outreach          Outreach[]
+  emailThreads      EmailThread[]
+  websiteSnapshots  WebsiteSnapshot[]
+  websitePages      WebsitePage[]
+  agentResearchRuns AgentResearchRun[]
 
   @@index([organizationId])
   @@index([companyId])
@@ -229,12 +238,15 @@ model Lead {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  contact      Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  company      Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  jobs         Job[]
-  outreach     Outreach[]
-  emailThreads EmailThread[]
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact           Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company           Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  jobs              Job[]
+  outreach          Outreach[]
+  emailThreads      EmailThread[]
+  websiteSnapshots  WebsiteSnapshot[]
+  websitePages      WebsitePage[]
+  agentResearchRuns AgentResearchRun[]
 
   @@index([organizationId])
   @@index([contactId])
@@ -484,4 +496,86 @@ model WorkspaceAiStrategy {
 
   @@index([organizationId])
   @@map("workspace_ai_strategies")
+}
+
+model WebsiteSnapshot {
+  id             String   @id @default(uuid())
+  organizationId String
+  leadId         String
+  url            String
+  rawText        String
+  textLength     Int
+  fetchedAt      DateTime @default(now())
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  pages        WebsitePage[]
+  researchRuns AgentResearchRun[]
+  company      Company?           @relation(fields: [companyId], references: [id])
+  companyId    String?
+  contact      Contact?           @relation(fields: [contactId], references: [id])
+  contactId    String?
+
+  @@index([organizationId])
+  @@index([leadId])
+  @@index([fetchedAt])
+  @@map("website_snapshots")
+}
+
+model WebsitePage {
+  id              String   @id @default(uuid())
+  organizationId  String
+  leadId          String
+  snapshotId      String?
+  url             String
+  pageType        String   @default("home")
+  rawText         String
+  extractedEmails String[] @default([])
+  extractedPhones String[] @default([])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  snapshot     WebsiteSnapshot? @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
+  company      Company?         @relation(fields: [companyId], references: [id])
+  companyId    String?
+  contact      Contact?         @relation(fields: [contactId], references: [id])
+  contactId    String?
+
+  @@index([organizationId])
+  @@index([leadId])
+  @@index([snapshotId])
+  @@map("website_pages")
+}
+
+model AgentResearchRun {
+  id             String   @id @default(uuid())
+  organizationId String
+  leadId         String
+  snapshotId     String?
+  agent          String   @default("agent1")
+  status         String   @default("completed")
+  output         Json
+  promptKey      String
+  promptSource   String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  snapshot     WebsiteSnapshot? @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
+  company      Company?         @relation(fields: [companyId], references: [id])
+  companyId    String?
+  contact      Contact?         @relation(fields: [contactId], references: [id])
+  contactId    String?
+
+  @@index([organizationId])
+  @@index([leadId])
+  @@index([snapshotId])
+  @@index([agent])
+  @@map("agent_research_runs")
 }
