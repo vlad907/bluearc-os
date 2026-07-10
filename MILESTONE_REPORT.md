@@ -176,6 +176,7 @@ All findings are architectural recommendations for future implementation. None b
 - First-run development workspace creation from Settings via `/api/setup/organization`.
 - One-click demo CRM data seeding for an empty selected workspace via `/api/setup/demo-data`.
 - Settings page documents PostgreSQL migration, seed, and local development commands.
+- Began CRM Command merge by porting Discovery prospect import and Automation review queue into native Next/Postgres pages.
 
 ## Validation Results
 
