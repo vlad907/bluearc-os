@@ -180,6 +180,7 @@ All findings are architectural recommendations for future implementation. None b
 - Moved CRM Command routes into a sidebar submenu and preserved original CRM agent prompts in `src/lib/ai/crm-agent-prompts.ts`.
 - Added `docs/CRM_AGENT_FEATURE_AUDIT.md` to track ported vs missing CRM Command capabilities.
 - Added Outreach mailbox threads/messages, manual inbound intake, classification filters, linked outreach context, and suggested replies.
+- Added Workspace Profile and AI Strategy context storage plus Settings UI for sender signature, tone, CTA, target categories, pain points, and guardrails.
 
 ## Validation Results
 

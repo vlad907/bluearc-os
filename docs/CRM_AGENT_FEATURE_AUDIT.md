@@ -25,6 +25,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Automation page: review queue for draft outreach, active tasks, and hot leads.
 - Sidebar grouping: CRM Command items are now under a dedicated submenu to avoid mixing core CRM CRUD with agent workflows.
 - Outreach mailbox: thread/message models, manual inbound email import, classification filters, linked outreach records, and deterministic suggested replies using the preserved response-draft prompt metadata.
+- Workspace profile and AI strategy context: business profile, sender signature fields, tone/CTA preferences, target categories, priority pain points, and guardrail notes.
 
 ## Key Original Features Not Yet Fully Ported
 
@@ -37,8 +38,8 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Email draft model with review status, Gmail draft IDs, sent metadata, and agent outputs.
 - Gmail OAuth, draft creation, send-as aliases, inbox sync, and reply sending.
 - Full inbox sync, AI classification, and approve/reject reply actions. Basic mailbox thread/message storage and suggested reply generation are now present.
-- Workspace profile/settings/onboarding for API keys, sender signature, service area, tone, CTA, and do-not-mention lists.
-- Workspace AI strategy generation, selected target categories, pain points, CTA style, and guardrails.
+- API key credential storage/onboarding flow.
+- Workspace AI strategy generation from profile. Profile storage, selected target categories, pain points, CTA style, and guardrails are now present.
 - Background pipeline worker for imported → research → draft → verify → draft/send progression.
 - Partner candidate model, fit score, contact emails, contact form URL, status transitions, and conversion to leads.
 - Lead pipeline status compatibility: discovered/imported/researching/researched/drafting/draft_ready/needs_review/approved/sent/replied/converted/archived.
@@ -55,8 +56,8 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 
 ## Recommended Next Merge Passes
 
-1. Add Prisma models for workspace profile, AI strategy, website snapshots/pages, email drafts, inbox threads/messages, partner candidates, and integration credentials.
-2. Add onboarding/settings sections for sender profile, AI keys, Google API/OAuth credentials, tone, CTA, and guardrails.
+1. Add Prisma models for website snapshots/pages, email drafts, partner candidates, and integration credentials.
+2. Add credential settings for AI keys and Google API/OAuth credentials.
 3. Implement website ingestion and Agent 1 research endpoint using the preserved prompt catalog.
 4. Implement Agent 2/Agent 3 draft generation and verification with review queue integration.
 5. Add Gmail OAuth/draft/send/inbox sync after credential encryption and auth are in place.

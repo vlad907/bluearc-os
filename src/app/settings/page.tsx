@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
 import { useOrganization } from "@/context/OrganizationContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -16,6 +16,119 @@ export default function SettingsPage() {
   const [seedStatus, setSeedStatus] = useState<string | null>(null);
   const [seedError, setSeedError] = useState<string | null>(null);
   const [seedingDemoData, setSeedingDemoData] = useState(false);
+  const [profileStatus, setProfileStatus] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    businessName: "",
+    businessDescription: "",
+    serviceArea: "",
+    industriesServed: "",
+    serviceSpecialties: "",
+    preferredTone: "professional, warm, direct",
+    outreachStyle: "concise consultative outbound",
+    preferredCta: "short call",
+    doNotMention: "",
+    senderName: "",
+    senderTitle: "",
+    senderPhone: "",
+    senderEmail: "",
+  });
+  const [strategyForm, setStrategyForm] = useState({
+    selectedTargetCategories: "",
+    selectedPriorityPainPoints: "",
+    selectedCtaStyle: "",
+    guardrailNotes: "",
+  });
+
+  const loadWorkspaceProfile = useCallback(async () => {
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    setProfileError(null);
+
+    try {
+      const [profileResponse, strategyResponse] = await Promise.all([
+        fetch("/api/workspace/profile", {
+          headers: { "x-organization-id": organizationId.trim() },
+          cache: "no-store",
+        }),
+        fetch("/api/workspace/ai-strategy", {
+          headers: { "x-organization-id": organizationId.trim() },
+          cache: "no-store",
+        }),
+      ]);
+      const profilePayload = await profileResponse.json() as {
+        profile?: Partial<typeof profileForm> & {
+          industriesServed?: string[];
+          serviceSpecialties?: string[];
+          doNotMention?: string[];
+        } | null;
+        error?: string;
+      };
+      const strategyPayload = await strategyResponse.json() as {
+        strategy?: {
+          selectedTargetCategories?: string[];
+          selectedPriorityPainPoints?: string[];
+          selectedCtaStyle?: string | null;
+          guardrails?: { notes?: string[] } | null;
+        } | null;
+        error?: string;
+      };
+
+      if (!profileResponse.ok) {
+        throw new Error(profilePayload.error ?? "Failed to load workspace profile");
+      }
+
+      if (!strategyResponse.ok) {
+        throw new Error(strategyPayload.error ?? "Failed to load AI strategy");
+      }
+
+      const profile = profilePayload.profile;
+      if (profile) {
+        setProfileForm({
+          businessName: profile.businessName ?? "",
+          businessDescription: profile.businessDescription ?? "",
+          serviceArea: profile.serviceArea ?? "",
+          industriesServed: (profile.industriesServed ?? []).join(", "),
+          serviceSpecialties: (profile.serviceSpecialties ?? []).join(", "),
+          preferredTone: profile.preferredTone ?? "",
+          outreachStyle: profile.outreachStyle ?? "",
+          preferredCta: profile.preferredCta ?? "",
+          doNotMention: (profile.doNotMention ?? []).join(", "),
+          senderName: profile.senderName ?? "",
+          senderTitle: profile.senderTitle ?? "",
+          senderPhone: profile.senderPhone ?? "",
+          senderEmail: profile.senderEmail ?? "",
+        });
+      }
+
+      const strategy = strategyPayload.strategy;
+      if (strategy) {
+        setStrategyForm({
+          selectedTargetCategories: (strategy.selectedTargetCategories ?? []).join(", "),
+          selectedPriorityPainPoints: (strategy.selectedPriorityPainPoints ?? []).join(", "),
+          selectedCtaStyle: strategy.selectedCtaStyle ?? "",
+          guardrailNotes: (strategy.guardrails?.notes ?? []).join(", "),
+        });
+      }
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : "Failed to load workspace profile");
+    }
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadWorkspaceProfile();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadWorkspaceProfile, organizationId]);
 
   async function handleCreateWorkspace(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -86,6 +199,83 @@ export default function SettingsPage() {
       setSeedError(error instanceof Error ? error.message : "Failed to seed demo data");
     } finally {
       setSeedingDemoData(false);
+    }
+  }
+
+  function csvToList(value: string) {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  async function handleSaveProfile(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    setSavingProfile(true);
+    setProfileStatus(null);
+    setProfileError(null);
+
+    try {
+      const [profileResponse, strategyResponse] = await Promise.all([
+        fetch("/api/workspace/profile", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "x-organization-id": organizationId.trim(),
+          },
+          body: JSON.stringify({
+            businessName: profileForm.businessName,
+            businessDescription: profileForm.businessDescription,
+            serviceArea: profileForm.serviceArea,
+            industriesServed: csvToList(profileForm.industriesServed),
+            serviceSpecialties: csvToList(profileForm.serviceSpecialties),
+            preferredTone: profileForm.preferredTone,
+            outreachStyle: profileForm.outreachStyle,
+            preferredCta: profileForm.preferredCta,
+            doNotMention: csvToList(profileForm.doNotMention),
+            senderName: profileForm.senderName,
+            senderTitle: profileForm.senderTitle,
+            senderPhone: profileForm.senderPhone,
+            senderEmail: profileForm.senderEmail,
+          }),
+        }),
+        fetch("/api/workspace/ai-strategy", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "x-organization-id": organizationId.trim(),
+          },
+          body: JSON.stringify({
+            selectedTargetCategories: csvToList(strategyForm.selectedTargetCategories),
+            selectedPriorityPainPoints: csvToList(strategyForm.selectedPriorityPainPoints),
+            selectedCtaStyle: strategyForm.selectedCtaStyle,
+            guardrails: {
+              notes: csvToList(strategyForm.guardrailNotes),
+            },
+          }),
+        }),
+      ]);
+      const profilePayload = await profileResponse.json() as { error?: string; errors?: string[] };
+      const strategyPayload = await strategyResponse.json() as { error?: string; errors?: string[] };
+
+      if (!profileResponse.ok) {
+        throw new Error(profilePayload.errors?.join(", ") ?? profilePayload.error ?? "Failed to save profile");
+      }
+
+      if (!strategyResponse.ok) {
+        throw new Error(strategyPayload.errors?.join(", ") ?? strategyPayload.error ?? "Failed to save strategy");
+      }
+
+      setProfileStatus("Workspace profile and AI strategy context saved.");
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : "Failed to save workspace profile");
+    } finally {
+      setSavingProfile(false);
     }
   }
 
@@ -182,6 +372,125 @@ export default function SettingsPage() {
             {seedError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{seedError}</p>}
           </div>
         </div>
+
+        <form
+          onSubmit={handleSaveProfile}
+          className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6"
+        >
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Workspace Profile</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
+            This restores the CRM agent context: who you are, what you sell, how the AI writes, and how emails are signed.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[
+              ["businessName", "Business Name"],
+              ["serviceArea", "Service Area"],
+              ["industriesServed", "Industries Served"],
+              ["serviceSpecialties", "Service Specialties"],
+              ["preferredTone", "Preferred Tone"],
+              ["outreachStyle", "Outreach Style"],
+              ["preferredCta", "Preferred CTA"],
+              ["doNotMention", "Do Not Mention"],
+              ["senderName", "Sender Name"],
+              ["senderTitle", "Sender Title"],
+              ["senderPhone", "Sender Phone"],
+              ["senderEmail", "Sender Email"],
+            ].map(([field, label]) => (
+              <div key={field}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  {label}
+                </label>
+                <input
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  value={profileForm[field as keyof typeof profileForm]}
+                  onChange={(event) =>
+                    setProfileForm((current) => ({ ...current, [field]: event.target.value }))
+                  }
+                  placeholder={["industriesServed", "serviceSpecialties", "doNotMention"].includes(field) ? "Comma separated" : undefined}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="mt-3">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              Business Description
+            </label>
+            <textarea
+              className="min-h-24 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              value={profileForm.businessDescription}
+              onChange={(event) =>
+                setProfileForm((current) => ({ ...current, businessDescription: event.target.value }))
+              }
+              placeholder="What does this business do, and for whom?"
+            />
+          </div>
+          <div className="mt-5 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-4">
+            <p className="text-sm font-medium text-gray-900 dark:text-white mb-3">AI Strategy Selection</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Target Categories
+                </label>
+                <input
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  value={strategyForm.selectedTargetCategories}
+                  onChange={(event) =>
+                    setStrategyForm((current) => ({ ...current, selectedTargetCategories: event.target.value }))
+                  }
+                  placeholder="restaurants, hotels, property managers"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Priority Pain Points
+                </label>
+                <input
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  value={strategyForm.selectedPriorityPainPoints}
+                  onChange={(event) =>
+                    setStrategyForm((current) => ({ ...current, selectedPriorityPainPoints: event.target.value }))
+                  }
+                  placeholder="downtime, unreliable Wi-Fi, rollout delays"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  CTA Style
+                </label>
+                <input
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  value={strategyForm.selectedCtaStyle}
+                  onChange={(event) =>
+                    setStrategyForm((current) => ({ ...current, selectedCtaStyle: event.target.value }))
+                  }
+                  placeholder="short call, site assessment, health check"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Guardrail Notes
+                </label>
+                <input
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  value={strategyForm.guardrailNotes}
+                  onChange={(event) =>
+                    setStrategyForm((current) => ({ ...current, guardrailNotes: event.target.value }))
+                  }
+                  placeholder="no fake claims, no placeholders"
+                />
+              </div>
+            </div>
+          </div>
+          <button
+            className="mt-4 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!organizationId.trim() || savingProfile}
+            type="submit"
+          >
+            {savingProfile ? "Saving..." : "Save Profile Context"}
+          </button>
+          {profileStatus && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{profileStatus}</p>}
+          {profileError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{profileError}</p>}
+        </form>
 
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Appearance</h3>

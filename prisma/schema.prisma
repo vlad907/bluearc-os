@@ -137,15 +137,17 @@ model Organization {
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
-  companies     Company[]
-  contacts      Contact[]
-  leads         Lead[]
-  tasks         Task[]
-  vendors       Vendor[]
-  jobs          Job[]
-  outreach      Outreach[]
-  emailThreads  EmailThread[]
-  emailMessages EmailMessage[]
+  companies           Company[]
+  contacts            Contact[]
+  leads               Lead[]
+  tasks               Task[]
+  vendors             Vendor[]
+  jobs                Job[]
+  outreach            Outreach[]
+  emailThreads        EmailThread[]
+  emailMessages       EmailMessage[]
+  workspaceProfile    WorkspaceProfile?
+  workspaceAiStrategy WorkspaceAiStrategy?
 
   @@map("organizations")
 }
@@ -440,4 +442,46 @@ model EmailMessage {
   @@index([receivedAt])
   @@index([sentAt])
   @@map("email_messages")
+}
+
+model WorkspaceProfile {
+  id                  String   @id @default(uuid())
+  organizationId      String   @unique
+  businessName        String?
+  businessDescription String?
+  serviceArea         String?
+  industriesServed    String[] @default([])
+  serviceSpecialties  String[] @default([])
+  preferredTone       String?
+  outreachStyle       String?
+  preferredCta        String?
+  doNotMention        String[] @default([])
+  senderName          String?
+  senderTitle         String?
+  senderPhone         String?
+  senderEmail         String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("workspace_profiles")
+}
+
+model WorkspaceAiStrategy {
+  id                         String   @id @default(uuid())
+  organizationId             String   @unique
+  generatedStrategy          Json?
+  selectedTargetCategories   String[] @default([])
+  selectedPriorityPainPoints String[] @default([])
+  selectedCtaStyle           String?
+  guardrails                 Json?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("workspace_ai_strategies")
 }
