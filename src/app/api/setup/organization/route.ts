@@ -102,7 +102,7 @@ export async function POST(request: Request) {
         await tx.organizationMember.create({
           data: {
             organizationId: createdOrganization.id,
-            userId: session.userId,
+            userId: session.user.id,
             role: "owner",
           },
         });
