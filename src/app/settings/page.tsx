@@ -28,6 +28,31 @@ type CredentialPreset = {
   description: string;
 };
 
+type AiUsagePayload = {
+  totals?: {
+    calls: number;
+    success: number;
+    failed: number;
+    skipped: number;
+    totalTokens: number;
+    requestTokens: number;
+    responseTokens: number;
+    averageDurationMs: number | null;
+  };
+  byProvider?: Record<string, number>;
+  byAgent?: Record<string, number>;
+  failures?: Array<{
+    id: string;
+    provider: string | null;
+    model: string | null;
+    agent: string;
+    promptKey: string | null;
+    error: string | null;
+    createdAt: string;
+  }>;
+  error?: string;
+};
+
 const credentialPresets: CredentialPreset[] = [
   {
     provider: "openai",
@@ -85,6 +110,9 @@ export default function SettingsPage() {
   const [credentialStatus, setCredentialStatus] = useState<string | null>(null);
   const [credentialError, setCredentialError] = useState<string | null>(null);
   const [savingCredential, setSavingCredential] = useState<string | null>(null);
+  const [aiUsage, setAiUsage] = useState<AiUsagePayload | null>(null);
+  const [loadingAiUsage, setLoadingAiUsage] = useState(false);
+  const [aiUsageError, setAiUsageError] = useState<string | null>(null);
   const [profileForm, setProfileForm] = useState({
     businessName: "",
     businessDescription: "",
@@ -211,6 +239,33 @@ export default function SettingsPage() {
     }
   }, [organizationId]);
 
+  const loadAiUsage = useCallback(async () => {
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    setLoadingAiUsage(true);
+    setAiUsageError(null);
+
+    try {
+      const response = await fetch("/api/ai-usage?days=30", {
+        headers: { "x-organization-id": organizationId.trim() },
+        cache: "no-store",
+      });
+      const payload = await response.json() as AiUsagePayload;
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to load AI usage");
+      }
+
+      setAiUsage(payload);
+    } catch (error) {
+      setAiUsageError(error instanceof Error ? error.message : "Failed to load AI usage");
+    } finally {
+      setLoadingAiUsage(false);
+    }
+  }, [organizationId]);
+
   useEffect(() => {
     if (!organizationId.trim()) {
       return;
@@ -219,10 +274,11 @@ export default function SettingsPage() {
     const timer = window.setTimeout(() => {
       void loadWorkspaceProfile();
       void loadCredentials();
+      void loadAiUsage();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [loadCredentials, loadWorkspaceProfile, organizationId]);
+  }, [loadAiUsage, loadCredentials, loadWorkspaceProfile, organizationId]);
 
   async function handleCreateWorkspace(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -692,6 +748,90 @@ export default function SettingsPage() {
           </div>
           {credentialStatus && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{credentialStatus}</p>}
           {credentialError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{credentialError}</p>}
+        </div>
+
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-1">AI Usage + Provider Health</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-500">
+                Last 30 days of provider attempts, retries, skips, token usage, and recent failures.
+              </p>
+            </div>
+            <button
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+              disabled={!organizationId.trim() || loadingAiUsage}
+              onClick={() => void loadAiUsage()}
+              type="button"
+            >
+              {loadingAiUsage ? "Refreshing..." : "Refresh Usage"}
+            </button>
+          </div>
+
+          {aiUsage?.totals ? (
+            <>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {[
+                  ["Calls", aiUsage.totals.calls],
+                  ["Success", aiUsage.totals.success],
+                  ["Failed", aiUsage.totals.failed],
+                  ["Skipped", aiUsage.totals.skipped],
+                  ["Tokens", aiUsage.totals.totalTokens],
+                  ["Input Tokens", aiUsage.totals.requestTokens],
+                  ["Output Tokens", aiUsage.totals.responseTokens],
+                  ["Avg Latency", aiUsage.totals.averageDurationMs === null ? "—" : `${aiUsage.totals.averageDurationMs}ms`],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
+                    <p className="text-xs text-gray-500 dark:text-gray-500">{label}</p>
+                    <p className="mt-1 text-xl font-semibold text-gray-900 dark:text-white">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">By Provider</p>
+                  <div className="mt-3 space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                    {Object.entries(aiUsage.byProvider ?? {}).map(([provider, count]) => (
+                      <div className="flex justify-between" key={provider}>
+                        <span>{provider}</span>
+                        <span>{count}</span>
+                      </div>
+                    ))}
+                    {Object.keys(aiUsage.byProvider ?? {}).length === 0 && <p>No provider calls yet.</p>}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">By Agent</p>
+                  <div className="mt-3 space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                    {Object.entries(aiUsage.byAgent ?? {}).map(([agent, count]) => (
+                      <div className="flex justify-between" key={agent}>
+                        <span>{agent}</span>
+                        <span>{count}</span>
+                      </div>
+                    ))}
+                    {Object.keys(aiUsage.byAgent ?? {}).length === 0 && <p>No agent calls yet.</p>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">Recent Failures</p>
+                <div className="mt-3 space-y-3">
+                  {(aiUsage.failures ?? []).map((failure) => (
+                    <div key={failure.id} className="rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950/20 dark:text-red-300">
+                      <p className="font-medium">{failure.agent} · {failure.provider ?? "unknown"} · {failure.promptKey ?? "unknown prompt"}</p>
+                      <p className="mt-1">{failure.error ?? "Unknown error"}</p>
+                    </div>
+                  ))}
+                  {(aiUsage.failures ?? []).length === 0 && <p className="text-sm text-gray-500 dark:text-gray-500">No recent provider failures.</p>}
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-500">No usage loaded yet.</p>
+          )}
+          {aiUsageError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{aiUsageError}</p>}
         </div>
 
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">

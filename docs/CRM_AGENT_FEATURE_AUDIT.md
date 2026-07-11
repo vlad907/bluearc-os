@@ -33,13 +33,14 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Provider-backed agent execution: Agent 1, Agent 2, and Agent 3 now attempt configured local OpenAI-compatible, OpenAI, or Anthropic JSON execution first and fall back to deterministic local output if credentials are missing or provider output fails validation.
 - Local model support: `local_openai` provider for LM Studio/Ollama/vLLM/llama.cpp-style OpenAI-compatible endpoints, attempted before paid providers when configured.
 - Provider-call observability: AI provider attempts are logged with provider/model, agent, prompt key, status, duration, character counts, token usage when returned, and error metadata; provider calls retry once before deterministic fallback.
+- AI usage dashboard: Settings now summarizes provider success/failure/skipped counts, token usage, latency, provider/agent breakdowns, and recent failures from `AiProviderCall`.
 
 ## Key Original Features Not Yet Fully Ported
 
 - Local business discovery via Google Places, geocoding, radius/category search.
 - Provider-backed partnership web search. Manual partner candidate import and deterministic candidate ranking now exist.
 - Multi-page website crawling beyond the manually submitted URL.
-- Production hardening for provider-backed Agent execution beyond basic retry/logging, including rate limits, budgets, queueing, and cost dashboards.
+- Production hardening for provider-backed Agent execution beyond basic retry/logging/dashboarding, including rate limits, budgets, queueing, and explicit cost estimates.
 - Gmail draft creation from approved EmailDraft records.
 - Gmail OAuth, draft creation, send-as aliases, inbox sync, and reply sending.
 - Full inbox sync, AI classification, and approve/reject reply actions. Basic mailbox thread/message storage and suggested reply generation are now present.
@@ -61,7 +62,7 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 
 ## Recommended Next Merge Passes
 
-1. Add rate limits, monthly budgets, and cost dashboards on top of `AiProviderCall`.
+1. Add rate limits, monthly budgets, and explicit dollar cost estimates on top of `AiProviderCall`.
 2. Add live partner web search using configured provider keys.
 3. Add Gmail OAuth connect/callback, draft creation, send, and inbox sync.
 4. Add encrypted OAuth token storage before any real Gmail account tokens are persisted.
