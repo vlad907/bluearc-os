@@ -2,6 +2,7 @@ import { OutreachDirection, Prisma } from "@prisma/client";
 
 import { getGoogleOAuthConfig, GoogleTokenPayload, GmailOAuthError } from "@/lib/gmail/oauth";
 import { decryptToken, encryptToken } from "@/lib/gmail/tokens";
+import { extractEmailAddress } from "@/lib/mailbox/email-address";
 import { prisma } from "@/lib/prisma";
 
 const GMAIL_API_ROOT = "https://gmail.googleapis.com/gmail/v1/users/me";
@@ -218,8 +219,10 @@ export async function sendGmailDraft(params: {
 export function normalizeGmailMessage(message: GmailMessage, fallbackEmail: string) {
   const headers = message.payload?.headers ?? message.headers ?? [];
   const subject = headerValue(headers, "subject") ?? "(no subject)";
-  const fromEmail = headerValue(headers, "from");
-  const toEmail = headerValue(headers, "to");
+  const rawFromEmail = headerValue(headers, "from");
+  const rawToEmail = headerValue(headers, "to");
+  const fromEmail = extractEmailAddress(rawFromEmail);
+  const toEmail = extractEmailAddress(rawToEmail);
   const dateHeader = headerValue(headers, "date");
   const receivedAt = message.internalDate
     ? new Date(Number(message.internalDate))
@@ -227,7 +230,7 @@ export function normalizeGmailMessage(message: GmailMessage, fallbackEmail: stri
       ? new Date(dateHeader)
       : new Date();
   const body = textFromPart(message.payload ?? message) || message.snippet || "";
-  const direction: OutreachDirection = fromEmail?.includes(fallbackEmail) ? "outbound" : "inbound";
+  const direction: OutreachDirection = fromEmail === fallbackEmail.toLowerCase() ? "outbound" : "inbound";
 
   return {
     providerMessageId: message.id,
@@ -242,6 +245,8 @@ export function normalizeGmailMessage(message: GmailMessage, fallbackEmail: stri
       labelIds: message.labelIds ?? [],
       snippet: message.snippet,
       gmailInternalDate: message.internalDate,
+      rawFromEmail,
+      rawToEmail,
     } satisfies Prisma.JsonObject,
   };
 }

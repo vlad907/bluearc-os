@@ -149,6 +149,26 @@ function formatDate(value: string | null) {
   }).format(date);
 }
 
+function contactLabel(contact: EmailThread["contact"]) {
+  if (!contact) {
+    return null;
+  }
+
+  const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
+  return contact.email ? `${name || "Contact"} <${contact.email}>` : name || "Contact";
+}
+
+function threadLinkLabel(thread: EmailThread) {
+  const company = thread.company?.name ?? null;
+  const contact = contactLabel(thread.contact);
+
+  if (company && contact) {
+    return `${company} · ${contact}`;
+  }
+
+  return company ?? contact ?? "Unlinked mailbox thread";
+}
+
 export default function OutreachPage() {
   const { organizationId, setOrganizationId } = useOrganization();
   const [activeTab, setActiveTab] = useState<"log" | "mailbox">("mailbox");
@@ -786,7 +806,7 @@ export default function OutreachPage() {
                     <div>
                       <p className="font-medium text-gray-900 dark:text-white">{thread.subject}</p>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
-                        {thread.company?.name ?? thread.contact?.email ?? "Unlinked mailbox thread"}
+                        {threadLinkLabel(thread)}
                       </p>
                     </div>
                     <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
@@ -812,6 +832,9 @@ export default function OutreachPage() {
                       <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
                         Status: {selectedThread.status} · Classification: {selectedThread.classification ?? "unknown"}
                         {selectedThread.outreach ? ` · Linked outreach: ${selectedThread.outreach.subject ?? "Untitled"}` : ""}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
+                        CRM link: {threadLinkLabel(selectedThread)}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">

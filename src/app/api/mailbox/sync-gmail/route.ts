@@ -9,6 +9,7 @@ import {
 } from "@/lib/gmail/client";
 import { GmailOAuthError } from "@/lib/gmail/oauth";
 import { classifyInboundEmail } from "@/lib/mailbox/classification";
+import { resolveMailboxLinks } from "@/lib/mailbox/linking";
 import { prisma } from "@/lib/prisma";
 import { requireWorkspaceRole } from "@/lib/auth/workspace";
 
@@ -105,6 +106,12 @@ export async function POST(request: NextRequest) {
       const message = await getGmailMessage(accessToken, messageRef.id);
       const normalized = normalizeGmailMessage(message, connection.email);
       const classification = normalized.direction === "inbound" ? classifyInboundEmail(normalized.body) : null;
+      const mailboxLinks = await resolveMailboxLinks({
+        organizationId,
+        direction: normalized.direction,
+        fromEmail: normalized.fromEmail,
+        toEmail: normalized.toEmail,
+      });
 
       const existingMessage = await prisma.emailMessage.findUnique({
         where: {
@@ -129,17 +136,23 @@ export async function POST(request: NextRequest) {
             providerThreadId: normalized.providerThreadId,
           },
         },
-        select: { id: true },
+        select: { id: true, companyId: true, contactId: true, metadata: true },
       });
 
       const thread = existingThread
         ? await prisma.emailThread.update({
             where: { id: existingThread.id },
             data: {
+              companyId: existingThread.companyId ?? mailboxLinks.companyId,
+              contactId: existingThread.contactId ?? mailboxLinks.contactId,
               subject: normalized.subject,
               classification: classification ?? undefined,
               lastMessageAt: normalized.receivedAt,
               status: classification && classification !== "unknown" ? "needs_reply" : undefined,
+              metadata: {
+                ...((existingThread.metadata as Prisma.JsonObject | null) ?? {}),
+                ...mailboxLinks.metadata,
+              },
             },
             select: { id: true },
           })
@@ -152,6 +165,9 @@ export async function POST(request: NextRequest) {
               status: classification && classification !== "unknown" ? "needs_reply" : "open",
               classification,
               lastMessageAt: normalized.receivedAt,
+              companyId: mailboxLinks.companyId,
+              contactId: mailboxLinks.contactId,
+              metadata: mailboxLinks.metadata,
             },
             select: { id: true },
           });
@@ -173,7 +189,10 @@ export async function POST(request: NextRequest) {
           classification,
           receivedAt: normalized.direction === "inbound" ? normalized.receivedAt : null,
           sentAt: normalized.direction === "outbound" ? normalized.receivedAt : null,
-          metadata: normalized.metadata,
+          metadata: {
+            ...normalized.metadata,
+            ...mailboxLinks.metadata,
+          },
         },
       });
       importedMessages += 1;
