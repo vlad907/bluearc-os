@@ -200,6 +200,21 @@ export async function createGmailDraft(params: {
   });
 }
 
+export async function sendGmailDraft(params: {
+  accessToken: string;
+  draftId: string;
+}) {
+  return gmailFetch<{ id?: string; message?: { id?: string; threadId?: string; labelIds?: string[] } }>(
+    params.accessToken,
+    "/drafts/send",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: params.draftId }),
+    },
+  );
+}
+
 export function normalizeGmailMessage(message: GmailMessage, fallbackEmail: string) {
   const headers = message.payload?.headers ?? message.headers ?? [];
   const subject = headerValue(headers, "subject") ?? "(no subject)";

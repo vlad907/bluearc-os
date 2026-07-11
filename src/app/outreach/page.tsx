@@ -43,6 +43,7 @@ type EmailMessage = {
   receivedAt: string | null;
   sentAt: string | null;
   createdAt: string;
+  metadata: Record<string, unknown> | null;
 };
 
 type EmailThread = {
@@ -157,6 +158,7 @@ export default function OutreachPage() {
   const [syncingGmail, setSyncingGmail] = useState(false);
   const [suggestingThreadId, setSuggestingThreadId] = useState<string | null>(null);
   const [creatingDraftThreadId, setCreatingDraftThreadId] = useState<string | null>(null);
+  const [sendingDraftThreadId, setSendingDraftThreadId] = useState<string | null>(null);
   const [mailboxMessage, setMailboxMessage] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -266,6 +268,9 @@ export default function OutreachPage() {
     [selectedThreadId, threads],
   );
   const selectedThreadHasSuggestion = selectedThread?.messages.some((message) => message.suggestedBody) ?? false;
+  const selectedThreadHasGmailDraft = selectedThread?.messages.some((message) => (
+    typeof message.metadata?.gmailDraftId === "string" && !message.metadata.gmailDraftSentAt
+  )) ?? false;
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -456,6 +461,39 @@ export default function OutreachPage() {
       setMailboxError(draftError instanceof Error ? draftError.message : "Failed to create Gmail draft");
     } finally {
       setCreatingDraftThreadId(null);
+    }
+  }
+
+  async function handleSendGmailDraft(threadId: string) {
+    if (!organizationId) {
+      return;
+    }
+
+    setSendingDraftThreadId(threadId);
+    setMailboxError(null);
+    setMailboxMessage(null);
+
+    try {
+      const response = await fetch(`/api/mailbox/${threadId}/gmail-send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({}),
+      });
+      const payload = (await response.json()) as unknown;
+
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload, "Failed to send Gmail draft"));
+      }
+
+      setMailboxMessage("Gmail draft sent and mailbox thread marked done.");
+      await loadMailbox();
+    } catch (sendError) {
+      setMailboxError(sendError instanceof Error ? sendError.message : "Failed to send Gmail draft");
+    } finally {
+      setSendingDraftThreadId(null);
     }
   }
 
@@ -711,6 +749,14 @@ export default function OutreachPage() {
                         type="button"
                       >
                         {creatingDraftThreadId === selectedThread.id ? "Creating..." : "Create Gmail Draft"}
+                      </button>
+                      <button
+                        className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                        disabled={!selectedThreadHasGmailDraft || sendingDraftThreadId === selectedThread.id}
+                        onClick={() => void handleSendGmailDraft(selectedThread.id)}
+                        type="button"
+                      >
+                        {sendingDraftThreadId === selectedThread.id ? "Sending..." : "Send Gmail Draft"}
                       </button>
                       <button
                         className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
