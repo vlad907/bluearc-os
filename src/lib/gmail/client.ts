@@ -121,9 +121,13 @@ export async function accessTokenForConnection(connection: GmailConnectionForUse
   return refreshAccessToken(connection);
 }
 
-async function gmailFetch<T>(accessToken: string, path: string) {
+async function gmailFetch<T>(accessToken: string, path: string, init?: RequestInit) {
   const response = await fetch(`${GMAIL_API_ROOT}${path}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+    ...init,
+    headers: {
+      ...(init?.headers ?? {}),
+      Authorization: `Bearer ${accessToken}`,
+    },
   });
   const payload = await response.json().catch(() => ({})) as T & { error?: { message?: string } };
 
@@ -154,6 +158,46 @@ export async function listGmailMessageIds(params: {
 export async function getGmailMessage(accessToken: string, id: string) {
   const query = new URLSearchParams({ format: "full" });
   return gmailFetch<GmailMessage>(accessToken, `/messages/${encodeURIComponent(id)}?${query.toString()}`);
+}
+
+function encodeMimeMessage(params: {
+  from: string;
+  to: string;
+  subject: string;
+  body: string;
+}) {
+  const normalizedBody = params.body.replace(/\r?\n/g, "\r\n");
+  const message = [
+    `From: ${params.from}`,
+    `To: ${params.to}`,
+    `Subject: ${params.subject}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: 7bit",
+    "",
+    normalizedBody,
+  ].join("\r\n");
+
+  return Buffer.from(message).toString("base64url");
+}
+
+export async function createGmailDraft(params: {
+  accessToken: string;
+  from: string;
+  to: string;
+  subject: string;
+  body: string;
+  threadId?: string | null;
+}) {
+  return gmailFetch<{ id: string; message?: { id?: string; threadId?: string } }>(params.accessToken, "/drafts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: {
+        raw: encodeMimeMessage(params),
+        threadId: params.threadId || undefined,
+      },
+    }),
+  });
 }
 
 export function normalizeGmailMessage(message: GmailMessage, fallbackEmail: string) {
