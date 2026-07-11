@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
-import { resolveWorkspaceId } from "@/lib/auth/workspace";
+import { resolveWorkspace } from "@/lib/auth/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,7 @@ function jsonError(message: string, status: number) {
 }
 
 async function resolveOrganizationId(request: NextRequest) {
-  return resolveWorkspaceId(request);
+  return resolveWorkspace(request);
 }
 
 function parseDays(value: string | null) {
@@ -28,12 +28,15 @@ function sumNullable(values: Array<number | null>) {
 }
 
 export async function GET(request: NextRequest) {
-  const organizationId = await resolveOrganizationId(request);
+  const workspace = await resolveOrganizationId(request);
+
+  if ("error" in workspace) {
+    return workspace.error;
+  }
+
+  const { organizationId } = workspace;
   const days = parseDays(request.nextUrl.searchParams.get("days"));
 
-  if (!organizationId) {
-    return jsonError("organizationId is required", 400);
-  }
 
   const since = new Date();
   since.setDate(since.getDate() - days);

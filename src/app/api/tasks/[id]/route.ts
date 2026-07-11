@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
-import { resolveWorkspaceId } from "@/lib/auth/workspace";
+import { resolveWorkspace } from "@/lib/auth/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +53,7 @@ async function readJsonBody(request: Request) {
 }
 
 async function resolveOrganizationId(request: NextRequest, body?: Record<string, unknown>) {
-  return resolveWorkspaceId(request, body);
+  return resolveWorkspace(request, body);
 }
 
 function isOneOf<T extends readonly string[]>(value: unknown, values: T): value is T[number] {
@@ -157,11 +157,13 @@ function handlePrismaError(error: unknown) {
 
 export async function GET(request: NextRequest, context: RouteParams) {
   const { id } = await context.params;
-  const organizationId = await resolveOrganizationId(request);
+  const workspace = await resolveOrganizationId(request);
 
-  if (!organizationId) {
-    return jsonError("organizationId is required", 400);
+  if ("error" in workspace) {
+    return workspace.error;
   }
+
+  const { organizationId } = workspace;
 
   try {
     const task = await prisma.task.findFirst({
@@ -186,11 +188,13 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
     return jsonError("Request body must be valid JSON", 400);
   }
 
-  const organizationId = await resolveOrganizationId(request, body);
+  const workspace = await resolveOrganizationId(request, body);
 
-  if (!organizationId) {
-    return jsonError("organizationId is required", 400);
+  if ("error" in workspace) {
+    return workspace.error;
   }
+
+  const { organizationId } = workspace;
 
   const { data, errors } = buildTaskData(body);
 
@@ -223,11 +227,13 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
 export async function DELETE(request: NextRequest, context: RouteParams) {
   const { id } = await context.params;
   const body = await readJsonBody(request);
-  const organizationId = await resolveOrganizationId(request, body ?? undefined);
+  const workspace = await resolveOrganizationId(request, body ?? undefined);
 
-  if (!organizationId) {
-    return jsonError("organizationId is required", 400);
+  if ("error" in workspace) {
+    return workspace.error;
   }
+
+  const { organizationId } = workspace;
 
   try {
     const result = await prisma.task.updateMany({

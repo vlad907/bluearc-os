@@ -98,6 +98,16 @@ export async function resolveWorkspaceId(request: NextRequest, body?: Organizati
   return access.authorized ? access.organizationId : null;
 }
 
+export async function resolveWorkspace(request: NextRequest, body?: OrganizationBody) {
+  const access = await resolveWorkspaceAccess(request, body);
+
+  if (!access.authorized || !access.organizationId) {
+    return { error: workspaceAccessError(access) };
+  }
+
+  return { organizationId: access.organizationId };
+}
+
 export async function requireWorkspaceRole(
   request: NextRequest,
   body: OrganizationBody,

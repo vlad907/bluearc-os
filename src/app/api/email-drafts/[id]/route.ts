@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
-import { resolveWorkspaceId } from "@/lib/auth/workspace";
+import { resolveWorkspace } from "@/lib/auth/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +30,7 @@ async function readJsonBody(request: Request) {
 }
 
 async function resolveOrganizationId(request: NextRequest, body?: UpdateDraftBody | null) {
-  return resolveWorkspaceId(request, body);
+  return resolveWorkspace(request, body);
 }
 
 function parseAction(value: unknown) {
@@ -58,14 +58,17 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
     return jsonError("Request body must be valid JSON", 400);
   }
 
-  const organizationId = await resolveOrganizationId(request, body);
+  const workspace = await resolveOrganizationId(request, body);
+
+  if ("error" in workspace) {
+    return workspace.error;
+  }
+
+  const { organizationId } = workspace;
   const action = parseAction(body.action);
   const subject = typeof body.subject === "string" && body.subject.trim() ? body.subject.trim() : undefined;
   const draftBody = typeof body.body === "string" && body.body.trim() ? body.body.trim() : undefined;
 
-  if (!organizationId) {
-    return jsonError("organizationId is required", 400);
-  }
 
   if (!action) {
     return jsonError("action must be approve, reject, or sent", 400);

@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
-import { resolveWorkspaceId } from "@/lib/auth/workspace";
+import { resolveWorkspace } from "@/lib/auth/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +35,7 @@ async function readJsonBody(request: Request) {
 }
 
 async function resolveOrganizationId(request: NextRequest, body?: CreatePartnerCandidateBody | null) {
-  return resolveWorkspaceId(request, body);
+  return resolveWorkspace(request, body);
 }
 
 function optionalString(value: unknown) {
@@ -60,12 +60,15 @@ function handlePrismaError(error: unknown) {
 }
 
 export async function GET(request: NextRequest) {
-  const organizationId = await resolveOrganizationId(request);
+  const workspace = await resolveOrganizationId(request);
+
+  if ("error" in workspace) {
+    return workspace.error;
+  }
+
+  const { organizationId } = workspace;
   const status = request.nextUrl.searchParams.get("status");
 
-  if (!organizationId) {
-    return jsonError("organizationId is required", 400);
-  }
 
   if (status && !candidateStatuses.includes(status as (typeof candidateStatuses)[number])) {
     return jsonError("status is invalid", 400);
@@ -97,12 +100,15 @@ export async function POST(request: NextRequest) {
     return jsonError("Request body must be valid JSON", 400);
   }
 
-  const organizationId = await resolveOrganizationId(request, body);
+  const workspace = await resolveOrganizationId(request, body);
+
+  if ("error" in workspace) {
+    return workspace.error;
+  }
+
+  const { organizationId } = workspace;
   const name = optionalString(body.name);
 
-  if (!organizationId) {
-    return jsonError("organizationId is required", 400);
-  }
 
   if (!name) {
     return jsonError("name is required", 400);

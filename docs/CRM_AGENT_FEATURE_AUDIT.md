@@ -39,6 +39,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Role-aware write guard: workspace mutations require owner/admin/manager/member membership; viewer memberships are read-only.
 - Member management: Settings can list workspace members, add existing signed-up users by email, update roles, remove members, and prevent deleting or demoting the final owner.
 - Workspace invitations: adding a non-user creates a pending invitation, Settings shows/revokes pending invites, and signup by the invited email automatically joins the invited workspace.
+- Explicit workspace auth errors: workspace-scoped APIs now return concrete auth responses instead of collapsing unauthorized access to a missing organization ID; viewer mutation attempts return `403`.
 
 ## Key Original Features Not Yet Fully Ported
 
@@ -54,7 +55,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Background pipeline worker for imported → research → draft → verify → draft/send progression.
 - Automated partner search sourcing from live web search APIs. Partner candidate storage, fit score, contact emails, contact form URL, status transitions, and conversion to leads now exist.
 - Lead pipeline status compatibility: discovered/imported/researching/researched/drafting/draft_ready/needs_review/approved/sent/replied/converted/archived.
-- Production-grade auth error responses and role-specific permissions beyond read/write. Manual `x-organization-id` remains a development bridge and should be removed once every client path uses the signed-in workspace.
+- Role-specific permissions beyond read/write. Manual `x-organization-id` remains a development bridge and should be removed once every client path uses the signed-in workspace.
 - Outbound email delivery for pending workspace invitations.
 
 ## Integration Direction
@@ -70,7 +71,7 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 
 ## Recommended Next Merge Passes
 
-1. Add production-grade auth error responses, outbound invite emails, and remove the manual workspace-ID fallback from production paths.
+1. Add outbound invite emails and remove the manual workspace-ID fallback from production paths.
 2. Add rate limits, monthly budgets, and explicit dollar cost estimates on top of `AiProviderCall`.
 3. Add live partner web search using configured provider keys.
 4. Add Gmail OAuth connect/callback, draft creation, send, and inbox sync.

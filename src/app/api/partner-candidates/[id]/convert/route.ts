@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
-import { resolveWorkspaceId } from "@/lib/auth/workspace";
+import { resolveWorkspace } from "@/lib/auth/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +27,7 @@ async function readJsonBody(request: Request) {
 }
 
 async function resolveOrganizationId(request: NextRequest, body?: ConvertBody) {
-  return resolveWorkspaceId(request, body);
+  return resolveWorkspace(request, body);
 }
 
 function domainFromWebsite(website: string | null) {
@@ -54,11 +54,13 @@ function handlePrismaError(error: unknown) {
 export async function POST(request: NextRequest, context: RouteParams) {
   const { id } = await context.params;
   const body = await readJsonBody(request);
-  const organizationId = await resolveOrganizationId(request, body);
+  const workspace = await resolveOrganizationId(request, body);
 
-  if (!organizationId) {
-    return jsonError("organizationId is required", 400);
+  if ("error" in workspace) {
+    return workspace.error;
   }
+
+  const { organizationId } = workspace;
 
   try {
     const candidate = await prisma.partnerCandidate.findFirst({

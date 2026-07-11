@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
-import { resolveWorkspaceId } from "@/lib/auth/workspace";
+import { resolveWorkspace } from "@/lib/auth/workspace";
 import {
   checkEnvCredentialStatus,
   defaultCredentialLabel,
@@ -37,7 +37,7 @@ async function readJsonBody(request: Request) {
 }
 
 async function resolveOrganizationId(request: NextRequest, body?: CredentialBody | null) {
-  return resolveWorkspaceId(request, body);
+  return resolveWorkspace(request, body);
 }
 
 function optionalString(value: unknown) {
@@ -82,11 +82,13 @@ function handlePrismaError(error: unknown) {
 }
 
 export async function GET(request: NextRequest) {
-  const organizationId = await resolveOrganizationId(request);
+  const workspace = await resolveOrganizationId(request);
 
-  if (!organizationId) {
-    return jsonError("organizationId is required", 400);
+  if ("error" in workspace) {
+    return workspace.error;
   }
+
+  const { organizationId } = workspace;
 
   try {
     const credentials = await prisma.integrationCredential.findMany({
@@ -107,15 +109,18 @@ export async function POST(request: NextRequest) {
     return jsonError("Request body must be valid JSON", 400);
   }
 
-  const organizationId = await resolveOrganizationId(request, body);
+  const workspace = await resolveOrganizationId(request, body);
+
+  if ("error" in workspace) {
+    return workspace.error;
+  }
+
+  const { organizationId } = workspace;
   const label = optionalString(body.label);
   const envKeyName = optionalString(body.envKeyName);
   const envSecretName = optionalString(body.envSecretName);
   const scopes = stringList(body.scopes);
 
-  if (!organizationId) {
-    return jsonError("organizationId is required", 400);
-  }
 
   if (!isIntegrationProvider(body.provider)) {
     return jsonError("provider is invalid", 400);

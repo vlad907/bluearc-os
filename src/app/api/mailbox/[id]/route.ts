@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
-import { resolveWorkspaceId } from "@/lib/auth/workspace";
+import { resolveWorkspace } from "@/lib/auth/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +25,7 @@ async function readJsonBody(request: Request) {
 }
 
 async function resolveOrganizationId(request: NextRequest, body?: Record<string, unknown>) {
-  return resolveWorkspaceId(request, body);
+  return resolveWorkspace(request, body);
 }
 
 function handlePrismaError(error: unknown) {
@@ -39,11 +39,13 @@ function handlePrismaError(error: unknown) {
 
 export async function GET(request: NextRequest, context: RouteParams) {
   const { id } = await context.params;
-  const organizationId = await resolveOrganizationId(request);
+  const workspace = await resolveOrganizationId(request);
 
-  if (!organizationId) {
-    return jsonError("organizationId is required", 400);
+  if ("error" in workspace) {
+    return workspace.error;
   }
+
+  const { organizationId } = workspace;
 
   try {
     const thread = await prisma.emailThread.findFirst({
@@ -78,12 +80,15 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
     return jsonError("Request body must be valid JSON", 400);
   }
 
-  const organizationId = await resolveOrganizationId(request, body);
+  const workspace = await resolveOrganizationId(request, body);
+
+  if ("error" in workspace) {
+    return workspace.error;
+  }
+
+  const { organizationId } = workspace;
   const status = typeof body.status === "string" ? body.status.trim() : "";
 
-  if (!organizationId) {
-    return jsonError("organizationId is required", 400);
-  }
 
   if (!allowedStatuses.includes(status as (typeof allowedStatuses)[number])) {
     return jsonError("status is invalid", 400);

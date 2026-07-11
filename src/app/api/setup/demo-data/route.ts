@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
-import { resolveWorkspaceId } from "@/lib/auth/workspace";
+import { resolveWorkspace } from "@/lib/auth/workspace";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -71,11 +71,13 @@ export async function POST(request: NextRequest) {
     return jsonError("Request body must be valid JSON", 400);
   }
 
-  const organizationId = await resolveWorkspaceId(request, body);
+  const workspace = await resolveWorkspace(request, body);
 
-  if (!organizationId) {
-    return jsonError("organizationId is required", 400);
+  if ("error" in workspace) {
+    return workspace.error;
   }
+
+  const { organizationId } = workspace;
 
   try {
     const organization = await prisma.organization.findUnique({
