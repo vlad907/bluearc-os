@@ -195,6 +195,13 @@ enum OrganizationMemberRole {
   viewer
 }
 
+enum WorkspaceInvitationStatus {
+  pending
+  accepted
+  revoked
+  expired
+}
+
 // ─── MODELS ────────────────────────────────────────────────────────────────────
 
 model Organization {
@@ -225,6 +232,7 @@ model Organization {
   integrationCredentials IntegrationCredential[]
   aiProviderCalls        AiProviderCall[]
   members                OrganizationMember[]
+  invitations            WorkspaceInvitation[]
 
   @@map("organizations")
 }
@@ -239,6 +247,8 @@ model User {
 
   memberships OrganizationMember[]
   sessions    UserSession[]
+  sentInvitations WorkspaceInvitation[] @relation("WorkspaceInvitationInviter")
+  acceptedInvitations WorkspaceInvitation[] @relation("WorkspaceInvitationAcceptedBy")
 
   @@map("users")
 }
@@ -273,6 +283,32 @@ model UserSession {
   @@index([userId])
   @@index([expiresAt])
   @@map("user_sessions")
+}
+
+model WorkspaceInvitation {
+  id             String                    @id @default(uuid())
+  organizationId String
+  email          String
+  role           OrganizationMemberRole    @default(member)
+  status         WorkspaceInvitationStatus @default(pending)
+  tokenHash      String                    @unique
+  invitedById    String
+  acceptedById   String?
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation("WorkspaceInvitationInviter", fields: [invitedById], references: [id], onDelete: Cascade)
+  acceptedBy   User?        @relation("WorkspaceInvitationAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, email, status])
+  @@index([organizationId])
+  @@index([email])
+  @@index([status])
+  @@map("workspace_invitations")
 }
 
 model Company {

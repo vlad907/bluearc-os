@@ -128,6 +128,49 @@ export async function POST(request: Request) {
         },
       });
 
+      const pendingInvitations = await tx.workspaceInvitation.findMany({
+        where: {
+          email,
+          status: "pending",
+          expiresAt: { gt: new Date() },
+        },
+        select: {
+          id: true,
+          organizationId: true,
+          role: true,
+        },
+      });
+
+      for (const invitation of pendingInvitations) {
+        if (invitation.organizationId === organization.id) {
+          continue;
+        }
+
+        await tx.organizationMember.upsert({
+          where: {
+            organizationId_userId: {
+              organizationId: invitation.organizationId,
+              userId: createdUser.id,
+            },
+          },
+          update: { role: invitation.role },
+          create: {
+            organizationId: invitation.organizationId,
+            userId: createdUser.id,
+            role: invitation.role,
+          },
+        });
+
+        await tx.workspaceInvitation.update({
+          where: { id: invitation.id },
+          data: {
+            status: "accepted",
+            acceptedById: createdUser.id,
+            acceptedAt: new Date(),
+          },
+        });
+      }
+
       return createdUser;
     });
 

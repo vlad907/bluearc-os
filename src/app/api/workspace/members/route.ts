@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { normalizeEmail } from "@/lib/auth/session";
+import { createRawInviteToken, hashInviteToken, normalizeEmail } from "@/lib/auth/session";
 import { requireWorkspaceRole, resolveWorkspaceAccess, workspaceAccessError } from "@/lib/auth/workspace";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +32,12 @@ function isMemberRole(value: unknown): value is MemberRole {
   return typeof value === "string" && memberRoles.includes(value as MemberRole);
 }
 
+function inviteExpiryDate() {
+  const date = new Date();
+  date.setDate(date.getDate() + 14);
+  return date;
+}
+
 export async function GET(request: NextRequest) {
   const access = await resolveWorkspaceAccess(request);
 
@@ -56,7 +62,31 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  return Response.json({ members });
+  const invitations = await prisma.workspaceInvitation.findMany({
+    where: {
+      organizationId: access.organizationId,
+      status: "pending",
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      status: true,
+      expiresAt: true,
+      createdAt: true,
+      invitedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  return Response.json({ members, invitations });
 }
 
 export async function POST(request: NextRequest) {
@@ -89,7 +119,54 @@ export async function POST(request: NextRequest) {
   });
 
   if (!user) {
-    return jsonError("User not found. Have them create an account first, then add them by email.", 404);
+    const inviteToken = createRawInviteToken();
+    const invitation = await prisma.workspaceInvitation.upsert({
+      where: {
+        organizationId_email_status: {
+          organizationId: auth.organizationId,
+          email,
+          status: "pending",
+        },
+      },
+      update: {
+        role,
+        tokenHash: hashInviteToken(inviteToken),
+        invitedById: auth.userId,
+        expiresAt: inviteExpiryDate(),
+        revokedAt: null,
+      },
+      create: {
+        organizationId: auth.organizationId,
+        email,
+        role,
+        tokenHash: hashInviteToken(inviteToken),
+        invitedById: auth.userId,
+        expiresAt: inviteExpiryDate(),
+      },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        status: true,
+        expiresAt: true,
+        createdAt: true,
+        invitedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    return Response.json(
+      {
+        invitation,
+        inviteUrl: `/settings?invite=${inviteToken}`,
+      },
+      { status: 202 },
+    );
   }
 
   const member = await prisma.organizationMember.upsert({

@@ -64,6 +64,20 @@ type WorkspaceMember = {
   };
 };
 
+type WorkspaceInvitation = {
+  id: string;
+  email: string;
+  role: WorkspaceMember["role"];
+  status: "pending" | "accepted" | "revoked" | "expired";
+  expiresAt: string;
+  createdAt: string;
+  invitedBy: {
+    id: string;
+    name: string;
+    email: string;
+  };
+};
+
 const workspaceRoles: WorkspaceMember["role"][] = ["owner", "admin", "manager", "member", "viewer"];
 
 const credentialPresets: CredentialPreset[] = [
@@ -138,6 +152,7 @@ export default function SettingsPage() {
   const [loadingAiUsage, setLoadingAiUsage] = useState(false);
   const [aiUsageError, setAiUsageError] = useState<string | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([]);
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState<WorkspaceMember["role"]>("member");
   const [memberStatus, setMemberStatus] = useState<string | null>(null);
@@ -311,6 +326,7 @@ export default function SettingsPage() {
       });
       const payload = await response.json() as {
         members?: WorkspaceMember[];
+        invitations?: WorkspaceInvitation[];
         error?: string;
       };
 
@@ -319,6 +335,7 @@ export default function SettingsPage() {
       }
 
       setMembers(payload.members ?? []);
+      setInvitations(payload.invitations ?? []);
     } catch (error) {
       setMemberError(error instanceof Error ? error.message : "Failed to load workspace members");
     }
@@ -417,15 +434,19 @@ export default function SettingsPage() {
       });
       const payload = await response.json() as {
         member?: WorkspaceMember;
+        invitation?: WorkspaceInvitation;
+        inviteUrl?: string;
         error?: string;
       };
 
-      if (!response.ok || !payload.member) {
+      if (!response.ok || (!payload.member && !payload.invitation)) {
         throw new Error(payload.error ?? "Failed to add workspace member");
       }
 
       setMemberEmail("");
-      setMemberStatus(`${payload.member.user.email} is now ${payload.member.role}.`);
+      setMemberStatus(payload.member
+        ? `${payload.member.user.email} is now ${payload.member.role}.`
+        : `Invitation created for ${payload.invitation?.email}. They will be added automatically after signup.`);
       await loadMembers();
       await refreshSession();
     } catch (error) {
@@ -503,6 +524,38 @@ export default function SettingsPage() {
       await refreshSession();
     } catch (error) {
       setMemberError(error instanceof Error ? error.message : "Failed to remove workspace member");
+    } finally {
+      setUpdatingMemberId(null);
+    }
+  }
+
+  async function handleRevokeInvitation(invitationId: string) {
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    setUpdatingMemberId(invitationId);
+    setMemberStatus(null);
+    setMemberError(null);
+
+    try {
+      const response = await fetch(`/api/workspace/invitations/${invitationId}?organizationId=${encodeURIComponent(organizationId.trim())}`, {
+        method: "DELETE",
+        headers: { "x-organization-id": organizationId.trim() },
+      });
+      const payload = await response.json() as {
+        revoked?: boolean;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.revoked) {
+        throw new Error(payload.error ?? "Failed to revoke invitation");
+      }
+
+      setMemberStatus("Workspace invitation revoked.");
+      await loadMembers();
+    } catch (error) {
+      setMemberError(error instanceof Error ? error.message : "Failed to revoke invitation");
     } finally {
       setUpdatingMemberId(null);
     }
@@ -919,6 +972,43 @@ export default function SettingsPage() {
                       type="button"
                     >
                       Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="mt-5 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+            <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Pending Invitations</p>
+              <p className="text-xs text-gray-500 dark:text-gray-500">
+                Invited emails are auto-joined when they create an account with the same address.
+              </p>
+            </div>
+            {invitations.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500 dark:text-gray-500">
+                No pending invitations.
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-200 dark:divide-gray-800">
+                {invitations.map((invitation) => (
+                  <div key={invitation.id} className="grid grid-cols-1 gap-3 p-4 md:grid-cols-[1fr_120px_auto] md:items-center">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{invitation.email}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-500">
+                        Invited by {invitation.invitedBy.name} · expires {new Date(invitation.expiresAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-center text-xs font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                      {invitation.role}
+                    </span>
+                    <button
+                      className="px-3 py-2 text-sm font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors disabled:opacity-50"
+                      disabled={updatingMemberId === invitation.id}
+                      onClick={() => void handleRevokeInvitation(invitation.id)}
+                      type="button"
+                    >
+                      Revoke
                     </button>
                   </div>
                 ))}

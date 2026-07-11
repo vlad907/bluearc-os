@@ -193,6 +193,7 @@ All findings are architectural recommendations for future implementation. None b
 - Added shared workspace access resolver and connected current API routes to session membership checks while preserving manual `organizationId` as a development fallback.
 - Added role-aware mutation guard in workspace resolution: signed-in `owner`, `admin`, `manager`, and `member` roles can write; `viewer` can read but cannot resolve workspace access for mutating requests.
 - Added workspace member management APIs and Settings UI for listing members, adding existing signed-up users by email, changing roles, removing members, and protecting the final workspace owner.
+- Added pending workspace invitations for non-users, invitation revocation, Settings pending-invites display, and automatic invite acceptance when the invited email signs up.
 
 ## Validation Results
 
@@ -207,7 +208,7 @@ All findings are architectural recommendations for future implementation. None b
 - Run seed against a real PostgreSQL/Supabase database.
 - Smoke-test core CRUD pages against the migrated database.
 - Replace compatibility fallback responses with strict auth errors and remove manual organization ID fallback before production use.
-- Add invite-email flow for users who do not already have accounts.
+- Add outbound invite emails for pending workspace invitations.
 
 ## Latest Database Workflow Update
 
