@@ -221,6 +221,50 @@ async function getConfiguredAiProvider(organizationId: string): Promise<AiProvid
   return null;
 }
 
+function monthStart() {
+  const date = new Date();
+  date.setUTCDate(1);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+}
+
+async function getBudgetBlockReason(organizationId: string) {
+  const budget = await prisma.aiUsageBudget.findUnique({ where: { organizationId } });
+
+  if (!budget?.enforce) {
+    return null;
+  }
+
+  const since = monthStart();
+  const [callCount, tokenAggregate] = await Promise.all([
+    prisma.aiProviderCall.count({
+      where: {
+        organizationId,
+        createdAt: { gte: since },
+        status: { in: ["success", "failed"] },
+      },
+    }),
+    prisma.aiProviderCall.aggregate({
+      where: {
+        organizationId,
+        createdAt: { gte: since },
+      },
+      _sum: { totalTokens: true },
+    }),
+  ]);
+
+  if (budget.monthlyCallLimit !== null && callCount >= budget.monthlyCallLimit) {
+    return `Monthly AI call budget reached (${callCount}/${budget.monthlyCallLimit}).`;
+  }
+
+  const totalTokens = tokenAggregate._sum.totalTokens ?? 0;
+  if (budget.monthlyTokenLimit !== null && totalTokens >= budget.monthlyTokenLimit) {
+    return `Monthly AI token budget reached (${totalTokens}/${budget.monthlyTokenLimit}).`;
+  }
+
+  return null;
+}
+
 async function callOpenAiJson(provider: AiProvider, systemPrompt: string, userPrompt: string): Promise<ProviderJsonResult> {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -364,6 +408,23 @@ async function callConfiguredJsonAgent(
       status: "skipped",
       inputChars: systemPrompt.length + userPrompt.length,
       metadata: { reason: "No configured AI provider" },
+    });
+    return null;
+  }
+
+  const budgetBlockReason = await getBudgetBlockReason(organizationId);
+
+  if (budgetBlockReason) {
+    await logProviderCall({
+      organizationId,
+      provider: provider.provider,
+      model: provider.model,
+      agent,
+      promptKey,
+      status: "skipped",
+      inputChars: systemPrompt.length + userPrompt.length,
+      error: budgetBlockReason,
+      metadata: { reason: "AI usage budget blocked provider call" },
     });
     return null;
   }

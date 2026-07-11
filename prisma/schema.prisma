@@ -231,6 +231,7 @@ model Organization {
   partnerCandidates      PartnerCandidate[]
   integrationCredentials IntegrationCredential[]
   aiProviderCalls        AiProviderCall[]
+  aiUsageBudget          AiUsageBudget?
   members                OrganizationMember[]
   invitations            WorkspaceInvitation[]
 
@@ -760,6 +761,21 @@ model AiProviderCall {
   @@index([status])
   @@index([createdAt])
   @@map("ai_provider_calls")
+}
+
+model AiUsageBudget {
+  id                String   @id @default(uuid())
+  organizationId    String   @unique
+  enforce           Boolean  @default(false)
+  monthlyCallLimit  Int?
+  monthlyTokenLimit Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("ai_usage_budgets")
 }
 
 model WorkspaceProfile {

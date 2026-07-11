@@ -53,6 +53,15 @@ type AiUsagePayload = {
   error?: string;
 };
 
+type AiBudgetPayload = {
+  budget?: {
+    enforce: boolean;
+    monthlyCallLimit: number | null;
+    monthlyTokenLimit: number | null;
+  };
+  error?: string;
+};
+
 type WorkspaceMember = {
   id: string;
   role: "owner" | "admin" | "manager" | "member" | "viewer";
@@ -151,6 +160,14 @@ export default function SettingsPage() {
   const [aiUsage, setAiUsage] = useState<AiUsagePayload | null>(null);
   const [loadingAiUsage, setLoadingAiUsage] = useState(false);
   const [aiUsageError, setAiUsageError] = useState<string | null>(null);
+  const [aiBudgetForm, setAiBudgetForm] = useState({
+    enforce: false,
+    monthlyCallLimit: "",
+    monthlyTokenLimit: "",
+  });
+  const [savingAiBudget, setSavingAiBudget] = useState(false);
+  const [aiBudgetStatus, setAiBudgetStatus] = useState<string | null>(null);
+  const [aiBudgetError, setAiBudgetError] = useState<string | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([]);
   const [memberEmail, setMemberEmail] = useState("");
@@ -312,6 +329,34 @@ export default function SettingsPage() {
     }
   }, [organizationId]);
 
+  const loadAiBudget = useCallback(async () => {
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    setAiBudgetError(null);
+
+    try {
+      const response = await fetch("/api/ai-budget", {
+        headers: { "x-organization-id": organizationId.trim() },
+        cache: "no-store",
+      });
+      const payload = await response.json() as AiBudgetPayload;
+
+      if (!response.ok || !payload.budget) {
+        throw new Error(payload.error ?? "Failed to load AI budget");
+      }
+
+      setAiBudgetForm({
+        enforce: payload.budget.enforce,
+        monthlyCallLimit: payload.budget.monthlyCallLimit === null ? "" : String(payload.budget.monthlyCallLimit),
+        monthlyTokenLimit: payload.budget.monthlyTokenLimit === null ? "" : String(payload.budget.monthlyTokenLimit),
+      });
+    } catch (error) {
+      setAiBudgetError(error instanceof Error ? error.message : "Failed to load AI budget");
+    }
+  }, [organizationId]);
+
   const loadMembers = useCallback(async () => {
     if (!organizationId.trim()) {
       return;
@@ -350,11 +395,52 @@ export default function SettingsPage() {
       void loadWorkspaceProfile();
       void loadCredentials();
       void loadAiUsage();
+      void loadAiBudget();
       void loadMembers();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [loadAiUsage, loadCredentials, loadMembers, loadWorkspaceProfile, organizationId]);
+  }, [loadAiBudget, loadAiUsage, loadCredentials, loadMembers, loadWorkspaceProfile, organizationId]);
+
+  async function handleSaveAiBudget(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    setSavingAiBudget(true);
+    setAiBudgetStatus(null);
+    setAiBudgetError(null);
+
+    try {
+      const response = await fetch("/api/ai-budget", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId.trim(),
+        },
+        body: JSON.stringify({
+          organizationId: organizationId.trim(),
+          enforce: aiBudgetForm.enforce,
+          monthlyCallLimit: aiBudgetForm.monthlyCallLimit,
+          monthlyTokenLimit: aiBudgetForm.monthlyTokenLimit,
+        }),
+      });
+      const payload = await response.json() as AiBudgetPayload;
+
+      if (!response.ok || !payload.budget) {
+        throw new Error(payload.error ?? "Failed to save AI budget");
+      }
+
+      setAiBudgetStatus("AI budget settings saved.");
+      await loadAiBudget();
+    } catch (error) {
+      setAiBudgetError(error instanceof Error ? error.message : "Failed to save AI budget");
+    } finally {
+      setSavingAiBudget(false);
+    }
+  }
 
   async function handleAuthSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1280,6 +1366,59 @@ export default function SettingsPage() {
           {credentialStatus && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{credentialStatus}</p>}
           {credentialError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{credentialError}</p>}
         </div>
+
+        <form
+          onSubmit={handleSaveAiBudget}
+          className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6"
+        >
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">AI Budget Controls</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
+            Set monthly guardrails before provider-backed agents run. Blank limits are ignored.
+          </p>
+          <label className="mb-4 flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
+            <input
+              checked={aiBudgetForm.enforce}
+              onChange={(event) => setAiBudgetForm((current) => ({ ...current, enforce: event.target.checked }))}
+              type="checkbox"
+            />
+            Enforce budget before provider calls
+          </label>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Monthly Call Limit
+              </label>
+              <input
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                inputMode="numeric"
+                placeholder="Example: 250"
+                value={aiBudgetForm.monthlyCallLimit}
+                onChange={(event) => setAiBudgetForm((current) => ({ ...current, monthlyCallLimit: event.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Monthly Token Limit
+              </label>
+              <input
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                inputMode="numeric"
+                placeholder="Example: 500000"
+                value={aiBudgetForm.monthlyTokenLimit}
+                onChange={(event) => setAiBudgetForm((current) => ({ ...current, monthlyTokenLimit: event.target.value }))}
+              />
+            </div>
+          </div>
+          <button
+            className="mt-4 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!organizationId.trim() || savingAiBudget}
+            type="submit"
+          >
+            {savingAiBudget ? "Saving..." : "Save AI Budget"}
+          </button>
+          {aiBudgetStatus && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{aiBudgetStatus}</p>}
+          {aiBudgetError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{aiBudgetError}</p>}
+        </form>
 
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
           <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">

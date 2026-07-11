@@ -40,13 +40,14 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Member management: Settings can list workspace members, add existing signed-up users by email, update roles, remove members, and prevent deleting or demoting the final owner.
 - Workspace invitations: adding a non-user creates a pending invitation, Settings shows/revokes pending invites, and signup by the invited email automatically joins the invited workspace.
 - Explicit workspace auth errors: workspace-scoped APIs now return concrete auth responses instead of collapsing unauthorized access to a missing organization ID; viewer mutation attempts return `403`.
+- AI budget controls: Settings can enforce monthly provider-call and token budgets; provider execution checks the current-month budget before calling local/OpenAI/Anthropic and logs budget blocks as skipped calls.
 
 ## Key Original Features Not Yet Fully Ported
 
 - Local business discovery via Google Places, geocoding, radius/category search.
 - Provider-backed partnership web search. Manual partner candidate import and deterministic candidate ranking now exist.
 - Multi-page website crawling beyond the manually submitted URL.
-- Production hardening for provider-backed Agent execution beyond basic retry/logging/dashboarding, including rate limits, budgets, queueing, and explicit cost estimates.
+- Production hardening for provider-backed Agent execution beyond basic retry/logging/dashboarding/budget caps, including rate limits, queueing, and explicit dollar cost estimates.
 - Gmail draft creation from approved EmailDraft records.
 - Gmail OAuth, draft creation, send-as aliases, inbox sync, and reply sending.
 - Full inbox sync, AI classification, and approve/reject reply actions. Basic mailbox thread/message storage and suggested reply generation are now present.
@@ -72,7 +73,7 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 ## Recommended Next Merge Passes
 
 1. Add outbound invite emails and remove the manual workspace-ID fallback from production paths.
-2. Add rate limits, monthly budgets, and explicit dollar cost estimates on top of `AiProviderCall`.
+2. Add rate limits and explicit dollar cost estimates on top of `AiProviderCall`.
 3. Add live partner web search using configured provider keys.
 4. Add Gmail OAuth connect/callback, draft creation, send, and inbox sync.
 5. Add encrypted OAuth token storage before any real Gmail account tokens are persisted.
