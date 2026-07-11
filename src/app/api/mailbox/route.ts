@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { resolveWorkspace } from "@/lib/auth/workspace";
+import { classifyInboundEmail } from "@/lib/mailbox/classification";
 
 export const dynamic = "force-dynamic";
 
@@ -33,36 +34,6 @@ function parseOptionalDate(value: unknown) {
 
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? new Date() : date;
-}
-
-function classifyInboundEmail(body: string) {
-  const normalized = body.toLowerCase();
-
-  if (normalized.includes("unsubscribe") || normalized.includes("remove me")) {
-    return "unsubscribe";
-  }
-
-  if (normalized.includes("price") || normalized.includes("cost") || normalized.includes("quote")) {
-    return "pricing_request";
-  }
-
-  if (normalized.includes("meeting") || normalized.includes("call") || normalized.includes("schedule")) {
-    return "meeting_request";
-  }
-
-  if (normalized.includes("not interested") || normalized.includes("no thanks")) {
-    return "not_interested";
-  }
-
-  if (normalized.includes("?")) {
-    return "question";
-  }
-
-  if (normalized.includes("interested") || normalized.includes("tell me more")) {
-    return "interested";
-  }
-
-  return "unknown";
 }
 
 function handlePrismaError(error: unknown) {

@@ -154,6 +154,7 @@ export default function OutreachPage() {
   const [loadingMailbox, setLoadingMailbox] = useState(false);
   const [saving, setSaving] = useState(false);
   const [importingInbound, setImportingInbound] = useState(false);
+  const [syncingGmail, setSyncingGmail] = useState(false);
   const [suggestingThreadId, setSuggestingThreadId] = useState<string | null>(null);
   const [mailboxMessage, setMailboxMessage] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -350,6 +351,46 @@ export default function OutreachPage() {
     }
   }
 
+  async function handleSyncGmail() {
+    if (!organizationId) {
+      return;
+    }
+
+    setSyncingGmail(true);
+    setMailboxError(null);
+    setMailboxMessage(null);
+
+    try {
+      const response = await fetch("/api/mailbox/sync-gmail", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({
+          maxResults: 20,
+        }),
+      });
+      const payload = (await response.json()) as unknown;
+
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload, "Failed to sync Gmail"));
+      }
+
+      const counts =
+        payload && typeof payload === "object" && "counts" in payload && payload.counts && typeof payload.counts === "object"
+          ? payload.counts as { importedMessages?: number; skippedMessages?: number; scanned?: number }
+          : {};
+
+      setMailboxMessage(`Gmail sync complete. Scanned ${counts.scanned ?? 0}, imported ${counts.importedMessages ?? 0}, skipped ${counts.skippedMessages ?? 0}.`);
+      await loadMailbox();
+    } catch (syncError) {
+      setMailboxError(syncError instanceof Error ? syncError.message : "Failed to sync Gmail");
+    } finally {
+      setSyncingGmail(false);
+    }
+  }
+
   async function handleSuggestReply(threadId: string) {
     if (!organizationId) {
       return;
@@ -486,17 +527,27 @@ export default function OutreachPage() {
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">Mailbox Intake</h3>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
-                  Manual mailbox import now; Gmail sync can plug into these same thread/message records later.
+                  Sync Gmail into the mailbox, or manually paste inbound messages when testing without OAuth.
                 </p>
               </div>
-              <button
-                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-                disabled={!organizationId || loadingMailbox}
-                onClick={() => void loadMailbox()}
-                type="button"
-              >
-                Refresh Mailbox
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                  disabled={!organizationId || syncingGmail}
+                  onClick={() => void handleSyncGmail()}
+                  type="button"
+                >
+                  {syncingGmail ? "Syncing..." : "Sync Gmail"}
+                </button>
+                <button
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                  disabled={!organizationId || loadingMailbox}
+                  onClick={() => void loadMailbox()}
+                  type="button"
+                >
+                  Refresh Mailbox
+                </button>
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
               <input

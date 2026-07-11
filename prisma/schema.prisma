@@ -631,6 +631,7 @@ model EmailThread {
   @@index([status])
   @@index([classification])
   @@index([lastMessageAt])
+  @@unique([organizationId, provider, providerThreadId])
   @@map("email_threads")
 }
 
@@ -664,6 +665,7 @@ model EmailMessage {
   @@index([classification])
   @@index([receivedAt])
   @@index([sentAt])
+  @@unique([organizationId, providerMessageId])
   @@map("email_messages")
 }
 
