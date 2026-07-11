@@ -37,6 +37,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Auth foundation: first-user signup creates a User, secure password hash, first Organization, owner membership, and HTTP-only session cookie; login/logout/me routes restore the selected workspace in the client.
 - Workspace access resolver: API routes now use a shared session-aware resolver that verifies signed-in membership before accepting a workspace ID, with manual workspace IDs retained only as a development bridge.
 - Role-aware write guard: workspace mutations require owner/admin/manager/member membership; viewer memberships are read-only.
+- Member management: Settings can list workspace members, add existing signed-up users by email, update roles, remove members, and prevent deleting or demoting the final owner.
 
 ## Key Original Features Not Yet Fully Ported
 
@@ -53,6 +54,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Automated partner search sourcing from live web search APIs. Partner candidate storage, fit score, contact emails, contact form URL, status transitions, and conversion to leads now exist.
 - Lead pipeline status compatibility: discovered/imported/researching/researched/drafting/draft_ready/needs_review/approved/sent/replied/converted/archived.
 - Production-grade auth error responses and role-specific permissions beyond read/write. Manual `x-organization-id` remains a development bridge and should be removed once every client path uses the signed-in workspace.
+- Invite flow for users who do not already have accounts.
 
 ## Integration Direction
 
@@ -67,7 +69,7 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 
 ## Recommended Next Merge Passes
 
-1. Add production-grade auth error responses, invite/member management UI, and remove the manual workspace-ID fallback from production paths.
+1. Add production-grade auth error responses, invite emails for non-users, and remove the manual workspace-ID fallback from production paths.
 2. Add rate limits, monthly budgets, and explicit dollar cost estimates on top of `AiProviderCall`.
 3. Add live partner web search using configured provider keys.
 4. Add Gmail OAuth connect/callback, draft creation, send, and inbox sync.

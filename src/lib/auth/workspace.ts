@@ -9,6 +9,7 @@ export type WorkspaceResolution = {
   organizationId: string | null;
   authenticated: boolean;
   authorized: boolean;
+  userId?: string;
   role?: string;
   reason?: "missing_organization" | "missing_session" | "not_member" | "insufficient_role";
 };
@@ -38,6 +39,7 @@ export async function resolveWorkspaceAccess(request: NextRequest, body?: Organi
         organizationId: null,
         authenticated: true,
         authorized: false,
+        userId: session.user.id,
         reason: "missing_organization",
       };
     }
@@ -50,6 +52,7 @@ export async function resolveWorkspaceAccess(request: NextRequest, body?: Organi
         organizationId: null,
         authenticated: true,
         authorized: false,
+        userId: session.user.id,
         role: membership.role,
         reason: "insufficient_role",
       };
@@ -59,6 +62,7 @@ export async function resolveWorkspaceAccess(request: NextRequest, body?: Organi
       organizationId: authorized ? organizationId : null,
       authenticated: true,
       authorized,
+      userId: session.user.id,
       role: membership?.role,
       reason: authorized ? undefined : "not_member",
     };
@@ -92,6 +96,36 @@ export async function resolveWorkspaceAccess(request: NextRequest, body?: Organi
 export async function resolveWorkspaceId(request: NextRequest, body?: OrganizationBody) {
   const access = await resolveWorkspaceAccess(request, body);
   return access.authorized ? access.organizationId : null;
+}
+
+export async function requireWorkspaceRole(
+  request: NextRequest,
+  body: OrganizationBody,
+  allowedRoles: readonly string[],
+) {
+  const access = await resolveWorkspaceAccess(request, body);
+
+  if (!access.authorized || !access.organizationId) {
+    return { error: workspaceAccessError(access) };
+  }
+
+  if (!access.authenticated || !access.userId || !access.role) {
+    return {
+      error: Response.json({ error: "Sign in is required for this workspace action" }, { status: 401 }),
+    };
+  }
+
+  if (!allowedRoles.includes(access.role)) {
+    return {
+      error: Response.json({ error: "Workspace role cannot perform this action" }, { status: 403 }),
+    };
+  }
+
+  return {
+    organizationId: access.organizationId,
+    userId: access.userId,
+    role: access.role,
+  };
 }
 
 export function workspaceAccessError(access: WorkspaceResolution) {

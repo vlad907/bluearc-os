@@ -53,6 +53,19 @@ type AiUsagePayload = {
   error?: string;
 };
 
+type WorkspaceMember = {
+  id: string;
+  role: "owner" | "admin" | "manager" | "member" | "viewer";
+  createdAt: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+  };
+};
+
+const workspaceRoles: WorkspaceMember["role"][] = ["owner", "admin", "manager", "member", "viewer"];
+
 const credentialPresets: CredentialPreset[] = [
   {
     provider: "openai",
@@ -124,6 +137,13 @@ export default function SettingsPage() {
   const [aiUsage, setAiUsage] = useState<AiUsagePayload | null>(null);
   const [loadingAiUsage, setLoadingAiUsage] = useState(false);
   const [aiUsageError, setAiUsageError] = useState<string | null>(null);
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [memberEmail, setMemberEmail] = useState("");
+  const [memberRole, setMemberRole] = useState<WorkspaceMember["role"]>("member");
+  const [memberStatus, setMemberStatus] = useState<string | null>(null);
+  const [memberError, setMemberError] = useState<string | null>(null);
+  const [savingMember, setSavingMember] = useState(false);
+  const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
   const [profileForm, setProfileForm] = useState({
     businessName: "",
     businessDescription: "",
@@ -277,6 +297,33 @@ export default function SettingsPage() {
     }
   }, [organizationId]);
 
+  const loadMembers = useCallback(async () => {
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    setMemberError(null);
+
+    try {
+      const response = await fetch("/api/workspace/members", {
+        headers: { "x-organization-id": organizationId.trim() },
+        cache: "no-store",
+      });
+      const payload = await response.json() as {
+        members?: WorkspaceMember[];
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to load workspace members");
+      }
+
+      setMembers(payload.members ?? []);
+    } catch (error) {
+      setMemberError(error instanceof Error ? error.message : "Failed to load workspace members");
+    }
+  }, [organizationId]);
+
   useEffect(() => {
     if (!organizationId.trim()) {
       return;
@@ -286,10 +333,11 @@ export default function SettingsPage() {
       void loadWorkspaceProfile();
       void loadCredentials();
       void loadAiUsage();
+      void loadMembers();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [loadAiUsage, loadCredentials, loadWorkspaceProfile, organizationId]);
+  }, [loadAiUsage, loadCredentials, loadMembers, loadWorkspaceProfile, organizationId]);
 
   async function handleAuthSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -340,6 +388,123 @@ export default function SettingsPage() {
       setAuthError(error instanceof Error ? error.message : "Failed to sign out");
     } finally {
       setSubmittingAuth(false);
+    }
+  }
+
+  async function handleAddMember(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!organizationId.trim() || !memberEmail.trim()) {
+      return;
+    }
+
+    setSavingMember(true);
+    setMemberStatus(null);
+    setMemberError(null);
+
+    try {
+      const response = await fetch("/api/workspace/members", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId.trim(),
+        },
+        body: JSON.stringify({
+          organizationId: organizationId.trim(),
+          email: memberEmail.trim(),
+          role: memberRole,
+        }),
+      });
+      const payload = await response.json() as {
+        member?: WorkspaceMember;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.member) {
+        throw new Error(payload.error ?? "Failed to add workspace member");
+      }
+
+      setMemberEmail("");
+      setMemberStatus(`${payload.member.user.email} is now ${payload.member.role}.`);
+      await loadMembers();
+      await refreshSession();
+    } catch (error) {
+      setMemberError(error instanceof Error ? error.message : "Failed to add workspace member");
+    } finally {
+      setSavingMember(false);
+    }
+  }
+
+  async function handleUpdateMember(memberId: string, role: WorkspaceMember["role"]) {
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    setUpdatingMemberId(memberId);
+    setMemberStatus(null);
+    setMemberError(null);
+
+    try {
+      const response = await fetch(`/api/workspace/members/${memberId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId.trim(),
+        },
+        body: JSON.stringify({
+          organizationId: organizationId.trim(),
+          role,
+        }),
+      });
+      const payload = await response.json() as {
+        member?: WorkspaceMember;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.member) {
+        throw new Error(payload.error ?? "Failed to update workspace member");
+      }
+
+      setMemberStatus(`${payload.member.user.email} changed to ${payload.member.role}.`);
+      await loadMembers();
+      await refreshSession();
+    } catch (error) {
+      setMemberError(error instanceof Error ? error.message : "Failed to update workspace member");
+    } finally {
+      setUpdatingMemberId(null);
+    }
+  }
+
+  async function handleRemoveMember(memberId: string) {
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    setUpdatingMemberId(memberId);
+    setMemberStatus(null);
+    setMemberError(null);
+
+    try {
+      const response = await fetch(`/api/workspace/members/${memberId}?organizationId=${encodeURIComponent(organizationId.trim())}`, {
+        method: "DELETE",
+        headers: { "x-organization-id": organizationId.trim() },
+      });
+      const payload = await response.json() as {
+        deleted?: boolean;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.deleted) {
+        throw new Error(payload.error ?? "Failed to remove workspace member");
+      }
+
+      setMemberStatus("Workspace member removed.");
+      await loadMembers();
+      await refreshSession();
+    } catch (error) {
+      setMemberError(error instanceof Error ? error.message : "Failed to remove workspace member");
+    } finally {
+      setUpdatingMemberId(null);
     }
   }
 
@@ -666,6 +831,102 @@ export default function SettingsPage() {
           )}
           {authStatus && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{authStatus}</p>}
           {authError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{authError}</p>}
+        </div>
+
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Workspace Members</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-500">
+                Owners and admins can add existing users, change roles, and remove members. Viewers are read-only.
+              </p>
+            </div>
+            <button
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+              disabled={!organizationId.trim()}
+              onClick={() => void loadMembers()}
+              type="button"
+            >
+              Refresh
+            </button>
+          </div>
+
+          <form onSubmit={handleAddMember} className="mt-5 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-4">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_160px_auto] gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Existing User Email
+                </label>
+                <input
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  placeholder="teammate@example.com"
+                  type="email"
+                  value={memberEmail}
+                  onChange={(event) => setMemberEmail(event.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Role
+                </label>
+                <select
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  value={memberRole}
+                  onChange={(event) => setMemberRole(event.target.value as WorkspaceMember["role"])}
+                >
+                  {workspaceRoles.map((role) => (
+                    <option key={role} value={role}>{role}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                className="self-end px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!organizationId.trim() || !memberEmail.trim() || savingMember}
+                type="submit"
+              >
+                {savingMember ? "Adding..." : "Add Member"}
+              </button>
+            </div>
+          </form>
+
+          <div className="mt-5 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+            {members.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500 dark:text-gray-500">
+                No members loaded yet. Sign in, select a workspace, then refresh.
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-200 dark:divide-gray-800">
+                {members.map((member) => (
+                  <div key={member.id} className="grid grid-cols-1 gap-3 p-4 md:grid-cols-[1fr_160px_auto] md:items-center">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{member.user.name}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-500">{member.user.email}</p>
+                    </div>
+                    <select
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none disabled:opacity-50"
+                      disabled={updatingMemberId === member.id}
+                      value={member.role}
+                      onChange={(event) => void handleUpdateMember(member.id, event.target.value as WorkspaceMember["role"])}
+                    >
+                      {workspaceRoles.map((role) => (
+                        <option key={role} value={role}>{role}</option>
+                      ))}
+                    </select>
+                    <button
+                      className="px-3 py-2 text-sm font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors disabled:opacity-50"
+                      disabled={updatingMemberId === member.id}
+                      onClick={() => void handleRemoveMember(member.id)}
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {memberStatus && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{memberStatus}</p>}
+          {memberError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{memberError}</p>}
         </div>
 
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
