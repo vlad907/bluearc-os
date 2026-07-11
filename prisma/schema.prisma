@@ -181,6 +181,12 @@ enum IntegrationCredentialStatus {
   disabled
 }
 
+enum AiProviderCallStatus {
+  success
+  failed
+  skipped
+}
+
 // ─── MODELS ────────────────────────────────────────────────────────────────────
 
 model Organization {
@@ -209,6 +215,7 @@ model Organization {
   agentResearchRuns      AgentResearchRun[]
   partnerCandidates      PartnerCandidate[]
   integrationCredentials IntegrationCredential[]
+  aiProviderCalls        AiProviderCall[]
 
   @@map("organizations")
 }
@@ -634,6 +641,34 @@ model IntegrationCredential {
   @@index([kind])
   @@index([status])
   @@map("integration_credentials")
+}
+
+model AiProviderCall {
+  id             String               @id @default(uuid())
+  organizationId String
+  provider       IntegrationProvider?
+  model          String?
+  agent          String
+  promptKey      String?
+  status         AiProviderCallStatus
+  durationMs     Int?
+  inputChars     Int?
+  outputChars    Int?
+  requestTokens  Int?
+  responseTokens Int?
+  totalTokens    Int?
+  error          String?
+  metadata       Json?
+  createdAt      DateTime             @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([provider])
+  @@index([agent])
+  @@index([status])
+  @@index([createdAt])
+  @@map("ai_provider_calls")
 }
 
 model WorkspaceProfile {

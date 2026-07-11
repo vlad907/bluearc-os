@@ -187,6 +187,7 @@ All findings are architectural recommendations for future implementation. None b
 - Added IntegrationCredential persistence and Settings UI for OpenAI, Anthropic, and Gmail OAuth environment-variable references without storing raw secrets in the database.
 - Added provider-backed Agent 1/2/3 execution path for configured OpenAI/Anthropic credentials with deterministic fallback and fallback metadata.
 - Added local OpenAI-compatible model provider support so LM Studio/Ollama/vLLM/llama.cpp endpoints can run agents before paid providers.
+- Added AiProviderCall logging with provider/model, agent, prompt key, status, duration, character counts, token usage when available, failures, and one retry before deterministic fallback.
 
 ## Validation Results
 

@@ -13,6 +13,16 @@ type AiProvider = {
   baseUrl?: string;
 };
 
+type ProviderJsonResult = {
+  output: JsonObject;
+  outputChars: number;
+  usage?: {
+    requestTokens?: number;
+    responseTokens?: number;
+    totalTokens?: number;
+  };
+};
+
 function asJsonObject(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : null;
 }
@@ -62,6 +72,17 @@ function extractOpenAiText(payload: unknown) {
   return "";
 }
 
+function extractOpenAiUsage(payload: unknown) {
+  const objectPayload = asJsonObject(payload);
+  const usage = asJsonObject(objectPayload?.usage);
+
+  return {
+    requestTokens: typeof usage?.input_tokens === "number" ? usage.input_tokens : undefined,
+    responseTokens: typeof usage?.output_tokens === "number" ? usage.output_tokens : undefined,
+    totalTokens: typeof usage?.total_tokens === "number" ? usage.total_tokens : undefined,
+  };
+}
+
 function extractAnthropicText(payload: unknown) {
   const objectPayload = asJsonObject(payload);
   const content = Array.isArray(objectPayload?.content) ? objectPayload.content : [];
@@ -77,6 +98,20 @@ function extractAnthropicText(payload: unknown) {
   return "";
 }
 
+function extractAnthropicUsage(payload: unknown) {
+  const objectPayload = asJsonObject(payload);
+  const usage = asJsonObject(objectPayload?.usage);
+
+  return {
+    requestTokens: typeof usage?.input_tokens === "number" ? usage.input_tokens : undefined,
+    responseTokens: typeof usage?.output_tokens === "number" ? usage.output_tokens : undefined,
+    totalTokens:
+      typeof usage?.input_tokens === "number" && typeof usage?.output_tokens === "number"
+        ? usage.input_tokens + usage.output_tokens
+        : undefined,
+  };
+}
+
 function extractChatCompletionText(payload: unknown) {
   const objectPayload = asJsonObject(payload);
   const choices = Array.isArray(objectPayload?.choices) ? objectPayload.choices : [];
@@ -84,6 +119,55 @@ function extractChatCompletionText(payload: unknown) {
   const message = asJsonObject(firstChoice?.message);
 
   return readString(message?.content);
+}
+
+function extractChatCompletionUsage(payload: unknown) {
+  const objectPayload = asJsonObject(payload);
+  const usage = asJsonObject(objectPayload?.usage);
+
+  return {
+    requestTokens: typeof usage?.prompt_tokens === "number" ? usage.prompt_tokens : undefined,
+    responseTokens: typeof usage?.completion_tokens === "number" ? usage.completion_tokens : undefined,
+    totalTokens: typeof usage?.total_tokens === "number" ? usage.total_tokens : undefined,
+  };
+}
+
+async function logProviderCall(params: {
+  organizationId: string;
+  provider?: AiProvider["provider"];
+  model?: string;
+  agent: string;
+  promptKey?: string;
+  status: "success" | "failed" | "skipped";
+  durationMs?: number;
+  inputChars?: number;
+  outputChars?: number;
+  usage?: ProviderJsonResult["usage"];
+  error?: string;
+  metadata?: Prisma.JsonObject;
+}) {
+  try {
+    await prisma.aiProviderCall.create({
+      data: {
+        organizationId: params.organizationId,
+        provider: params.provider,
+        model: params.model,
+        agent: params.agent,
+        promptKey: params.promptKey,
+        status: params.status,
+        durationMs: params.durationMs,
+        inputChars: params.inputChars,
+        outputChars: params.outputChars,
+        requestTokens: params.usage?.requestTokens,
+        responseTokens: params.usage?.responseTokens,
+        totalTokens: params.usage?.totalTokens,
+        error: params.error?.slice(0, 500),
+        metadata: params.metadata,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to log provider call", error);
+  }
 }
 
 async function getConfiguredAiProvider(organizationId: string): Promise<AiProvider | null> {
@@ -137,7 +221,7 @@ async function getConfiguredAiProvider(organizationId: string): Promise<AiProvid
   return null;
 }
 
-async function callOpenAiJson(provider: AiProvider, systemPrompt: string, userPrompt: string) {
+async function callOpenAiJson(provider: AiProvider, systemPrompt: string, userPrompt: string): Promise<ProviderJsonResult> {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -172,10 +256,14 @@ async function callOpenAiJson(provider: AiProvider, systemPrompt: string, userPr
     throw new Error("OpenAI returned non-JSON output");
   }
 
-  return object;
+  return {
+    output: object,
+    outputChars: text.length,
+    usage: extractOpenAiUsage(payload),
+  };
 }
 
-async function callLocalOpenAiJson(provider: AiProvider, systemPrompt: string, userPrompt: string) {
+async function callLocalOpenAiJson(provider: AiProvider, systemPrompt: string, userPrompt: string): Promise<ProviderJsonResult> {
   if (!provider.baseUrl) {
     throw new Error("Local provider is missing base URL");
   }
@@ -209,10 +297,14 @@ async function callLocalOpenAiJson(provider: AiProvider, systemPrompt: string, u
     throw new Error("Local OpenAI-compatible endpoint returned non-JSON output");
   }
 
-  return object;
+  return {
+    output: object,
+    outputChars: text.length,
+    usage: extractChatCompletionUsage(payload),
+  };
 }
 
-async function callAnthropicJson(provider: AiProvider, systemPrompt: string, userPrompt: string) {
+async function callAnthropicJson(provider: AiProvider, systemPrompt: string, userPrompt: string): Promise<ProviderJsonResult> {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -240,28 +332,85 @@ async function callAnthropicJson(provider: AiProvider, systemPrompt: string, use
     throw new Error("Anthropic returned non-JSON output");
   }
 
-  return object;
+  return {
+    output: object,
+    outputChars: text.length,
+    usage: extractAnthropicUsage(payload),
+  };
 }
 
-async function callConfiguredJsonAgent(organizationId: string, systemPrompt: string, userPrompt: string) {
+async function callProviderJson(provider: AiProvider, systemPrompt: string, userPrompt: string) {
+  return provider.provider === "local_openai"
+    ? callLocalOpenAiJson(provider, systemPrompt, userPrompt)
+    : provider.provider === "openai"
+      ? callOpenAiJson(provider, systemPrompt, userPrompt)
+      : callAnthropicJson(provider, systemPrompt, userPrompt);
+}
+
+async function callConfiguredJsonAgent(
+  organizationId: string,
+  agent: string,
+  promptKey: string,
+  systemPrompt: string,
+  userPrompt: string,
+) {
   const provider = await getConfiguredAiProvider(organizationId);
 
   if (!provider) {
+    await logProviderCall({
+      organizationId,
+      agent,
+      promptKey,
+      status: "skipped",
+      inputChars: systemPrompt.length + userPrompt.length,
+      metadata: { reason: "No configured AI provider" },
+    });
     return null;
   }
 
-  const output =
-    provider.provider === "local_openai"
-      ? await callLocalOpenAiJson(provider, systemPrompt, userPrompt)
-      : provider.provider === "openai"
-        ? await callOpenAiJson(provider, systemPrompt, userPrompt)
-        : await callAnthropicJson(provider, systemPrompt, userPrompt);
+  let lastError: unknown = null;
 
-  return {
-    provider: provider.provider,
-    model: provider.model,
-    output,
-  };
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const startedAt = Date.now();
+    try {
+      const result = await callProviderJson(provider, systemPrompt, userPrompt);
+      await logProviderCall({
+        organizationId,
+        provider: provider.provider,
+        model: provider.model,
+        agent,
+        promptKey,
+        status: "success",
+        durationMs: Date.now() - startedAt,
+        inputChars: systemPrompt.length + userPrompt.length,
+        outputChars: result.outputChars,
+        usage: result.usage,
+        metadata: { attempt },
+      });
+
+      return {
+        provider: provider.provider,
+        model: provider.model,
+        output: result.output,
+      };
+    } catch (error) {
+      lastError = error;
+      await logProviderCall({
+        organizationId,
+        provider: provider.provider,
+        model: provider.model,
+        agent,
+        promptKey,
+        status: "failed",
+        durationMs: Date.now() - startedAt,
+        inputChars: systemPrompt.length + userPrompt.length,
+        error: error instanceof Error ? error.message : "Provider call failed",
+        metadata: { attempt },
+      });
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Provider call failed");
 }
 
 function normalizedGenerationMode(provider: string) {
@@ -272,6 +421,8 @@ export async function runProviderAgent1(organizationId: string, websiteText: str
   const prompt = getCrmAgentPrompt("agent1Research");
   const result = await callConfiguredJsonAgent(
     organizationId,
+    "agent1",
+    prompt.key,
     prompt.prompt,
     `Website text:\n${websiteText.slice(0, 30000)}`,
   );
@@ -294,6 +445,8 @@ export async function runProviderAgent2(organizationId: string, input: Agent2Dra
   const prompt = getCrmAgentPrompt(input.mode === "partnership" ? "agent2PartnershipOutreach" : "agent2Outreach");
   const result = await callConfiguredJsonAgent(
     organizationId,
+    "agent2",
+    prompt.key,
     prompt.prompt,
     JSON.stringify({
       mode: input.mode,
@@ -340,6 +493,8 @@ export async function runProviderAgent3(params: {
   const prompt = getCrmAgentPrompt("agent3Verifier");
   const result = await callConfiguredJsonAgent(
     params.organizationId,
+    "agent3",
+    prompt.key,
     prompt.prompt,
     JSON.stringify({
       mode: params.mode,
