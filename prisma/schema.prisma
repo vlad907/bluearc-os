@@ -230,6 +230,7 @@ model Organization {
   agentResearchRuns      AgentResearchRun[]
   partnerCandidates      PartnerCandidate[]
   integrationCredentials IntegrationCredential[]
+  gmailConnections       GmailConnection[]
   aiProviderCalls        AiProviderCall[]
   aiUsageBudget          AiUsageBudget?
   members                OrganizationMember[]
@@ -250,6 +251,7 @@ model User {
   sessions    UserSession[]
   sentInvitations WorkspaceInvitation[] @relation("WorkspaceInvitationInviter")
   acceptedInvitations WorkspaceInvitation[] @relation("WorkspaceInvitationAcceptedBy")
+  gmailConnections GmailConnection[]
 
   @@map("users")
 }
@@ -733,6 +735,35 @@ model IntegrationCredential {
   @@index([kind])
   @@index([status])
   @@map("integration_credentials")
+}
+
+model GmailConnection {
+  id                    String                      @id @default(uuid())
+  organizationId        String
+  userId                String
+  email                 String
+  status                IntegrationCredentialStatus @default(connected)
+  scopes                String[]                    @default([])
+  encryptedAccessToken  String
+  encryptedRefreshToken String?
+  tokenExpiresAt        DateTime?
+  lastSyncedAt          DateTime?
+  lastError             String?
+  metadata              Json?
+  connectedAt           DateTime                    @default(now())
+  disconnectedAt        DateTime?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId, email])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([email])
+  @@index([status])
+  @@map("gmail_connections")
 }
 
 model AiProviderCall {

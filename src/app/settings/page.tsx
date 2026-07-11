@@ -62,6 +62,29 @@ type AiBudgetPayload = {
   error?: string;
 };
 
+type GmailConnection = {
+  id: string;
+  email: string;
+  status: "configured" | "missing_env" | "invalid" | "connected" | "disabled";
+  scopes: string[];
+  tokenExpiresAt: string | null;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+  connectedAt: string;
+  disconnectedAt: string | null;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+  };
+};
+
+type GmailStatusPayload = {
+  connected?: boolean;
+  connections?: GmailConnection[];
+  error?: string;
+};
+
 type WorkspaceMember = {
   id: string;
   role: "owner" | "admin" | "manager" | "member" | "viewer";
@@ -157,6 +180,9 @@ export default function SettingsPage() {
   const [credentialStatus, setCredentialStatus] = useState<string | null>(null);
   const [credentialError, setCredentialError] = useState<string | null>(null);
   const [savingCredential, setSavingCredential] = useState<string | null>(null);
+  const [gmailStatus, setGmailStatus] = useState<GmailStatusPayload | null>(null);
+  const [gmailError, setGmailError] = useState<string | null>(null);
+  const [disconnectingGmailId, setDisconnectingGmailId] = useState<string | null>(null);
   const [aiUsage, setAiUsage] = useState<AiUsagePayload | null>(null);
   const [loadingAiUsage, setLoadingAiUsage] = useState(false);
   const [aiUsageError, setAiUsageError] = useState<string | null>(null);
@@ -357,6 +383,30 @@ export default function SettingsPage() {
     }
   }, [organizationId]);
 
+  const loadGmailStatus = useCallback(async () => {
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    setGmailError(null);
+
+    try {
+      const response = await fetch("/api/integrations/google/status", {
+        headers: { "x-organization-id": organizationId.trim() },
+        cache: "no-store",
+      });
+      const payload = await response.json() as GmailStatusPayload;
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to load Gmail status");
+      }
+
+      setGmailStatus(payload);
+    } catch (error) {
+      setGmailError(error instanceof Error ? error.message : "Failed to load Gmail status");
+    }
+  }, [organizationId]);
+
   const loadMembers = useCallback(async () => {
     if (!organizationId.trim()) {
       return;
@@ -394,13 +444,14 @@ export default function SettingsPage() {
     const timer = window.setTimeout(() => {
       void loadWorkspaceProfile();
       void loadCredentials();
+      void loadGmailStatus();
       void loadAiUsage();
       void loadAiBudget();
       void loadMembers();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [loadAiBudget, loadAiUsage, loadCredentials, loadMembers, loadWorkspaceProfile, organizationId]);
+  }, [loadAiBudget, loadAiUsage, loadCredentials, loadGmailStatus, loadMembers, loadWorkspaceProfile, organizationId]);
 
   async function handleSaveAiBudget(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -841,6 +892,49 @@ export default function SettingsPage() {
       setCredentialError(error instanceof Error ? error.message : "Failed to save credential reference");
     } finally {
       setSavingCredential(null);
+    }
+  }
+
+  function handleConnectGmail() {
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    window.location.href = `/api/integrations/google/connect?organizationId=${encodeURIComponent(organizationId.trim())}`;
+  }
+
+  async function handleDisconnectGmail(connectionId: string) {
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    setDisconnectingGmailId(connectionId);
+    setGmailError(null);
+
+    try {
+      const response = await fetch("/api/integrations/google/disconnect", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId.trim(),
+        },
+        body: JSON.stringify({
+          organizationId: organizationId.trim(),
+          connectionId,
+        }),
+      });
+      const payload = await response.json() as { disconnected?: boolean; error?: string };
+
+      if (!response.ok || !payload.disconnected) {
+        throw new Error(payload.error ?? "Failed to disconnect Gmail");
+      }
+
+      await loadGmailStatus();
+      await loadCredentials();
+    } catch (error) {
+      setGmailError(error instanceof Error ? error.message : "Failed to disconnect Gmail");
+    } finally {
+      setDisconnectingGmailId(null);
     }
   }
 
@@ -1365,6 +1459,73 @@ export default function SettingsPage() {
           </div>
           {credentialStatus && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{credentialStatus}</p>}
           {credentialError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{credentialError}</p>}
+        </div>
+
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Gmail Connection</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-500">
+                Connect a Gmail mailbox for inbox sync, draft creation, suggested replies, and outreach follow-up tracking.
+              </p>
+            </div>
+            <button
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!organizationId.trim()}
+              onClick={handleConnectGmail}
+              type="button"
+            >
+              Connect Gmail
+            </button>
+          </div>
+
+          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${gmailStatus?.connected ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"}`}>
+                {gmailStatus?.connected ? "connected" : "not_connected"}
+              </span>
+              <button
+                className="text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+                disabled={!organizationId.trim()}
+                onClick={() => void loadGmailStatus()}
+                type="button"
+              >
+                Refresh status
+              </button>
+            </div>
+
+            {(gmailStatus?.connections ?? []).length === 0 ? (
+              <p className="mt-3 text-sm text-gray-500 dark:text-gray-500">
+                No Gmail accounts connected yet. Save the Gmail OAuth App credential reference above, restart dev after env changes, then connect.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {(gmailStatus?.connections ?? []).map((connection) => (
+                  <div key={connection.id} className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{connection.email}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-500">
+                        Connected by {connection.user.name} · {new Date(connection.connectedAt).toLocaleString()}
+                        {connection.tokenExpiresAt ? ` · token expires ${new Date(connection.tokenExpiresAt).toLocaleString()}` : ""}
+                      </p>
+                      {connection.lastError && (
+                        <p className="mt-1 text-xs text-red-600 dark:text-red-400">{connection.lastError}</p>
+                      )}
+                    </div>
+                    <button
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                      disabled={disconnectingGmailId === connection.id || connection.status !== "connected"}
+                      onClick={() => void handleDisconnectGmail(connection.id)}
+                      type="button"
+                    >
+                      {disconnectingGmailId === connection.id ? "Disconnecting..." : connection.status === "connected" ? "Disconnect" : connection.status}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {gmailError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{gmailError}</p>}
         </div>
 
         <form
