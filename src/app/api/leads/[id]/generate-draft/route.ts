@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { resolveWorkspaceId } from "@/lib/auth/workspace";
 import { providerErrorMetadata, runProviderAgent2, runProviderAgent3 } from "@/lib/ai/provider-agents";
 import { DraftMode, runDeterministicAgent2, runDeterministicAgent3 } from "@/lib/outreach/draft-agents";
 
@@ -28,13 +29,8 @@ async function readJsonBody(request: Request) {
   }
 }
 
-function resolveOrganizationId(request: NextRequest, body?: GenerateDraftBody) {
-  const organizationId =
-    request.headers.get("x-organization-id") ??
-    request.nextUrl.searchParams.get("organizationId") ??
-    (typeof body?.organizationId === "string" ? body.organizationId : null);
-
-  return organizationId?.trim() || null;
+async function resolveOrganizationId(request: NextRequest, body?: GenerateDraftBody) {
+  return resolveWorkspaceId(request, body);
 }
 
 function parseMode(value: unknown): DraftMode {
@@ -65,7 +61,7 @@ function handlePrismaError(error: unknown) {
 export async function POST(request: NextRequest, context: RouteParams) {
   const { id } = await context.params;
   const body = await readJsonBody(request);
-  const organizationId = resolveOrganizationId(request, body);
+  const organizationId = await resolveOrganizationId(request, body);
   const mode = parseMode(body.mode);
 
   if (!organizationId) {

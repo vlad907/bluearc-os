@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { resolveWorkspaceId } from "@/lib/auth/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -58,13 +59,8 @@ async function readJsonBody(request: Request) {
   }
 }
 
-function resolveOrganizationId(request: NextRequest, body?: Record<string, unknown>) {
-  const organizationId =
-    request.headers.get("x-organization-id") ??
-    request.nextUrl.searchParams.get("organizationId") ??
-    (typeof body?.organizationId === "string" ? body.organizationId : null);
-
-  return organizationId?.trim() || null;
+async function resolveOrganizationId(request: NextRequest, body?: Record<string, unknown>) {
+  return resolveWorkspaceId(request, body);
 }
 
 function isOneOf<T extends readonly string[]>(value: unknown, values: T): value is T[number] {
@@ -158,7 +154,7 @@ function handlePrismaError(error: unknown) {
 
 export async function GET(request: NextRequest, context: RouteParams) {
   const { id } = await context.params;
-  const organizationId = resolveOrganizationId(request);
+  const organizationId = await resolveOrganizationId(request);
 
   if (!organizationId) {
     return jsonError("organizationId is required", 400);
@@ -187,7 +183,7 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
     return jsonError("Request body must be valid JSON", 400);
   }
 
-  const organizationId = resolveOrganizationId(request, body);
+  const organizationId = await resolveOrganizationId(request, body);
 
   if (!organizationId) {
     return jsonError("organizationId is required", 400);
@@ -229,7 +225,7 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
 
 export async function DELETE(request: NextRequest, context: RouteParams) {
   const { id } = await context.params;
-  const organizationId = resolveOrganizationId(request);
+  const organizationId = await resolveOrganizationId(request);
 
   if (!organizationId) {
     return jsonError("organizationId is required", 400);

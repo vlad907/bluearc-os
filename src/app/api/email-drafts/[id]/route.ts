@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { resolveWorkspaceId } from "@/lib/auth/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -28,13 +29,8 @@ async function readJsonBody(request: Request) {
   }
 }
 
-function resolveOrganizationId(request: NextRequest, body?: UpdateDraftBody | null) {
-  const organizationId =
-    request.headers.get("x-organization-id") ??
-    request.nextUrl.searchParams.get("organizationId") ??
-    (typeof body?.organizationId === "string" ? body.organizationId : null);
-
-  return organizationId?.trim() || null;
+async function resolveOrganizationId(request: NextRequest, body?: UpdateDraftBody | null) {
+  return resolveWorkspaceId(request, body);
 }
 
 function parseAction(value: unknown) {
@@ -62,7 +58,7 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
     return jsonError("Request body must be valid JSON", 400);
   }
 
-  const organizationId = resolveOrganizationId(request, body);
+  const organizationId = await resolveOrganizationId(request, body);
   const action = parseAction(body.action);
   const subject = typeof body.subject === "string" && body.subject.trim() ? body.subject.trim() : undefined;
   const draftBody = typeof body.body === "string" && body.body.trim() ? body.body.trim() : undefined;

@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { resolveWorkspaceId } from "@/lib/auth/workspace";
 import { providerErrorMetadata, runProviderAgent1 } from "@/lib/ai/provider-agents";
 import { runDeterministicAgent1 } from "@/lib/research/agent1";
 
@@ -28,13 +29,8 @@ async function readJsonBody(request: Request) {
   }
 }
 
-function resolveOrganizationId(request: NextRequest, body?: RunAgentBody) {
-  const organizationId =
-    request.headers.get("x-organization-id") ??
-    request.nextUrl.searchParams.get("organizationId") ??
-    (typeof body?.organizationId === "string" ? body.organizationId : null);
-
-  return organizationId?.trim() || null;
+async function resolveOrganizationId(request: NextRequest, body?: RunAgentBody) {
+  return resolveWorkspaceId(request, body);
 }
 
 function asJsonObject(value: Prisma.JsonValue | null) {
@@ -55,7 +51,7 @@ function handlePrismaError(error: unknown) {
 export async function POST(request: NextRequest, context: RouteParams) {
   const { id } = await context.params;
   const body = await readJsonBody(request);
-  const organizationId = resolveOrganizationId(request, body);
+  const organizationId = await resolveOrganizationId(request, body);
   const snapshotId = typeof body.snapshotId === "string" ? body.snapshotId.trim() : "";
 
   if (!organizationId) {

@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { resolveWorkspaceId } from "@/lib/auth/workspace";
 import { extractEmails, extractPhones, fetchWebsiteText, inferPageType } from "@/lib/research/website";
 
 export const dynamic = "force-dynamic";
@@ -27,13 +28,8 @@ async function readJsonBody(request: Request) {
   }
 }
 
-function resolveOrganizationId(request: NextRequest, body?: IngestWebsiteBody) {
-  const organizationId =
-    request.headers.get("x-organization-id") ??
-    request.nextUrl.searchParams.get("organizationId") ??
-    (typeof body?.organizationId === "string" ? body.organizationId : null);
-
-  return organizationId?.trim() || null;
+async function resolveOrganizationId(request: NextRequest, body?: IngestWebsiteBody) {
+  return resolveWorkspaceId(request, body);
 }
 
 function parseWebsiteUrl(value: unknown) {
@@ -76,7 +72,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
     return jsonError("Request body must be valid JSON", 400);
   }
 
-  const organizationId = resolveOrganizationId(request, body);
+  const organizationId = await resolveOrganizationId(request, body);
   const url = parseWebsiteUrl(body.url);
 
   if (!organizationId) {

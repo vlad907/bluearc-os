@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { resolveWorkspaceId } from "@/lib/auth/workspace";
 import {
   checkEnvCredentialStatus,
   defaultCredentialLabel,
@@ -35,13 +36,8 @@ async function readJsonBody(request: Request) {
   }
 }
 
-function resolveOrganizationId(request: NextRequest, body?: CredentialBody | null) {
-  const organizationId =
-    request.headers.get("x-organization-id") ??
-    request.nextUrl.searchParams.get("organizationId") ??
-    (typeof body?.organizationId === "string" ? body.organizationId : null);
-
-  return organizationId?.trim() || null;
+async function resolveOrganizationId(request: NextRequest, body?: CredentialBody | null) {
+  return resolveWorkspaceId(request, body);
 }
 
 function optionalString(value: unknown) {
@@ -86,7 +82,7 @@ function handlePrismaError(error: unknown) {
 }
 
 export async function GET(request: NextRequest) {
-  const organizationId = resolveOrganizationId(request);
+  const organizationId = await resolveOrganizationId(request);
 
   if (!organizationId) {
     return jsonError("organizationId is required", 400);
@@ -111,7 +107,7 @@ export async function POST(request: NextRequest) {
     return jsonError("Request body must be valid JSON", 400);
   }
 
-  const organizationId = resolveOrganizationId(request, body);
+  const organizationId = await resolveOrganizationId(request, body);
   const label = optionalString(body.label);
   const envKeyName = optionalString(body.envKeyName);
   const envSecretName = optionalString(body.envSecretName);

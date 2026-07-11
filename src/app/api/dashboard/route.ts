@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { resolveWorkspaceId } from "@/lib/auth/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +27,8 @@ function jsonError(message: string, status: number) {
   return Response.json({ error: message }, { status });
 }
 
-function resolveOrganizationId(request: NextRequest) {
-  const organizationId =
-    request.headers.get("x-organization-id") ?? request.nextUrl.searchParams.get("organizationId");
-
-  return organizationId?.trim() || null;
+async function resolveOrganizationId(request: NextRequest) {
+  return resolveWorkspaceId(request);
 }
 
 function decimalToNumber(value: unknown) {
@@ -85,7 +83,7 @@ function formatDueDate(value: Date | null) {
 }
 
 export async function GET(request: NextRequest) {
-  const organizationId = resolveOrganizationId(request);
+  const organizationId = await resolveOrganizationId(request);
 
   if (!organizationId) {
     return jsonError("organizationId is required", 400);

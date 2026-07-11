@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { resolveWorkspaceId } from "@/lib/auth/workspace";
 import { runDeterministicPartnershipFit } from "@/lib/partners/partnership-fit";
 import { fetchWebsiteText } from "@/lib/research/website";
 
@@ -28,13 +29,8 @@ async function readJsonBody(request: Request) {
   }
 }
 
-function resolveOrganizationId(request: NextRequest, body?: AnalyzeBody) {
-  const organizationId =
-    request.headers.get("x-organization-id") ??
-    request.nextUrl.searchParams.get("organizationId") ??
-    (typeof body?.organizationId === "string" ? body.organizationId : null);
-
-  return organizationId?.trim() || null;
+async function resolveOrganizationId(request: NextRequest, body?: AnalyzeBody) {
+  return resolveWorkspaceId(request, body);
 }
 
 function asJsonObject(value: Prisma.JsonValue | null) {
@@ -53,7 +49,7 @@ function handlePrismaError(error: unknown) {
 export async function POST(request: NextRequest, context: RouteParams) {
   const { id } = await context.params;
   const body = await readJsonBody(request);
-  const organizationId = resolveOrganizationId(request, body);
+  const organizationId = await resolveOrganizationId(request, body);
 
   if (!organizationId) {
     return jsonError("organizationId is required", 400);

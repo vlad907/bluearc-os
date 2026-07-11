@@ -1,4 +1,6 @@
 import { Prisma } from "@prisma/client";
+import { NextRequest } from "next/server";
+import { resolveWorkspaceId } from "@/lib/auth/workspace";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -62,14 +64,14 @@ function hasExistingData(counts: Record<string, number>) {
   return Object.values(counts).some((count) => count > 0);
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const body = await readJsonBody(request);
 
   if (!body) {
     return jsonError("Request body must be valid JSON", 400);
   }
 
-  const organizationId = typeof body.organizationId === "string" ? body.organizationId.trim() : "";
+  const organizationId = await resolveWorkspaceId(request, body);
 
   if (!organizationId) {
     return jsonError("organizationId is required", 400);
