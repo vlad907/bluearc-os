@@ -9,8 +9,12 @@ export type WorkspaceResolution = {
   organizationId: string | null;
   authenticated: boolean;
   authorized: boolean;
-  reason?: "missing_organization" | "missing_session" | "not_member";
+  role?: string;
+  reason?: "missing_organization" | "missing_session" | "not_member" | "insufficient_role";
 };
+
+const mutatingMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const writeRoles = new Set(["owner", "admin", "manager", "member"]);
 
 export function requestedOrganizationId(request: NextRequest, body?: OrganizationBody) {
   const organizationId =
@@ -38,12 +42,24 @@ export async function resolveWorkspaceAccess(request: NextRequest, body?: Organi
       };
     }
 
-    const authorized = memberships.some((membership) => membership.organization.id === organizationId);
+    const membership = memberships.find((item) => item.organization.id === organizationId);
+    const authorized = Boolean(membership);
+
+    if (membership && mutatingMethods.has(request.method) && !writeRoles.has(membership.role)) {
+      return {
+        organizationId: null,
+        authenticated: true,
+        authorized: false,
+        role: membership.role,
+        reason: "insufficient_role",
+      };
+    }
 
     return {
       organizationId: authorized ? organizationId : null,
       authenticated: true,
       authorized,
+      role: membership?.role,
       reason: authorized ? undefined : "not_member",
     };
   }
@@ -81,6 +97,10 @@ export async function resolveWorkspaceId(request: NextRequest, body?: Organizati
 export function workspaceAccessError(access: WorkspaceResolution) {
   if (access.reason === "not_member") {
     return Response.json({ error: "Workspace access denied" }, { status: 403 });
+  }
+
+  if (access.reason === "insufficient_role") {
+    return Response.json({ error: "Workspace role cannot modify this resource" }, { status: 403 });
   }
 
   if (access.reason === "missing_session") {

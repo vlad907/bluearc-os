@@ -191,6 +191,7 @@ All findings are architectural recommendations for future implementation. None b
 - Added Settings AI usage dashboard for provider success/failure/skipped counts, token totals, latency, provider/agent breakdowns, and recent failures.
 - Added first-user authentication foundation with User, UserSession, and OrganizationMember tables, signup/login/logout/me API routes, password hashing, secure HTTP-only session cookies, and Settings account setup that creates the first workspace automatically.
 - Added shared workspace access resolver and connected current API routes to session membership checks while preserving manual `organizationId` as a development fallback.
+- Added role-aware mutation guard in workspace resolution: signed-in `owner`, `admin`, `manager`, and `member` roles can write; `viewer` can read but cannot resolve workspace access for mutating requests.
 
 ## Validation Results
 
@@ -204,7 +205,7 @@ All findings are architectural recommendations for future implementation. None b
 - Replace local `.env` `DATABASE_URL` with a real PostgreSQL/Supabase connection string.
 - Run seed against a real PostgreSQL/Supabase database.
 - Smoke-test core CRUD pages against the migrated database.
-- Replace compatibility fallback responses with strict auth errors, role checks, and removal of manual organization ID fallback before production use.
+- Replace compatibility fallback responses with strict auth errors and remove manual organization ID fallback before production use.
 
 ## Latest Database Workflow Update
 
