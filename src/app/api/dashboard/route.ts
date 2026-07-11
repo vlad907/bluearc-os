@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { resolveWorkspace } from "@/lib/auth/workspace";
@@ -112,6 +113,12 @@ export async function GET(request: NextRequest) {
       recentOutreach,
       followUpTasks,
       upcomingTasks,
+      mailboxThreadCount,
+      needsReplyThreadCount,
+      draftedThreadCount,
+      sentGmailMessageCount,
+      connectedGmailCount,
+      recentMailboxThreads,
     ] = await Promise.all([
       prisma.company.count({ where: { organizationId, deletedAt: null } }),
       prisma.contact.count({ where: { organizationId, deletedAt: null } }),
@@ -200,6 +207,24 @@ export async function GET(request: NextRequest) {
         take: 6,
         select: { id: true, title: true, dueDate: true, priority: true, status: true },
       }),
+      prisma.emailThread.count({ where: { organizationId, deletedAt: null } }),
+      prisma.emailThread.count({ where: { organizationId, deletedAt: null, status: "needs_reply" } }),
+      prisma.emailThread.count({ where: { organizationId, deletedAt: null, status: "drafted" } }),
+      prisma.emailMessage.count({
+        where: {
+          organizationId,
+          deletedAt: null,
+          direction: "outbound",
+          metadata: { path: ["gmailDraftSentAt"], not: Prisma.JsonNull },
+        },
+      }),
+      prisma.gmailConnection.count({ where: { organizationId, status: "connected" } }),
+      prisma.emailThread.findMany({
+        where: { organizationId, deletedAt: null },
+        orderBy: [{ lastMessageAt: "desc" }, { createdAt: "desc" }],
+        take: 5,
+        select: { id: true, subject: true, status: true, classification: true, lastMessageAt: true, createdAt: true },
+      }),
     ]);
 
     const totalPipelineValue = decimalToNumber(leadValue._sum.value);
@@ -252,6 +277,15 @@ export async function GET(request: NextRequest) {
         avatar: "OR",
         createdAt: item.createdAt,
       })),
+      ...recentMailboxThreads.map((thread) => ({
+        id: `mailbox-${thread.id}`,
+        type: "mailbox",
+        description: `${thread.status === "needs_reply" ? "Reply needed" : "Mailbox"}: ${thread.subject}`,
+        timestamp: formatTimestamp(thread.lastMessageAt ?? thread.createdAt),
+        user: thread.classification ?? "Mailbox",
+        avatar: "GM",
+        createdAt: thread.lastMessageAt ?? thread.createdAt,
+      })),
     ]
       .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
       .slice(0, 6)
@@ -281,8 +315,41 @@ export async function GET(request: NextRequest) {
         { id: "jobs", label: "Open Jobs", value: openJobCount, change: 0, trend: "up", icon: "Briefcase", tone: "amber" },
         { id: "tasks", label: "Open Tasks", value: pendingTaskCount, change: 0, trend: "up", icon: "CheckSquare", tone: overdueTaskCount > 0 ? "rose" : "slate" },
         { id: "outreach", label: "Outreach Items", value: outreachCount, change: 0, trend: "up", icon: "Mail", tone: "indigo" },
+        { id: "mailbox", label: "Mailbox Threads", value: mailboxThreadCount, change: 0, trend: "up", icon: "Mail", tone: needsReplyThreadCount > 0 ? "rose" : "sky" },
       ],
       insights: [
+        {
+          id: "gmail-connected",
+          label: "Gmail Accounts",
+          value: connectedGmailCount,
+          description: connectedGmailCount > 0 ? "Mailbox sync and draft send are available" : "Connect Gmail to unlock mailbox automation",
+          href: "/settings",
+          severity: connectedGmailCount > 0 ? "good" : "warning",
+        },
+        {
+          id: "mailbox-needs-reply",
+          label: "Needs Reply",
+          value: needsReplyThreadCount,
+          description: needsReplyThreadCount > 0 ? "Inbound Gmail threads need attention" : "No mailbox replies waiting",
+          href: "/outreach",
+          severity: needsReplyThreadCount > 0 ? "critical" : "good",
+        },
+        {
+          id: "gmail-drafted",
+          label: "Drafted Replies",
+          value: draftedThreadCount,
+          description: draftedThreadCount > 0 ? "Review and send drafted Gmail replies" : "No Gmail drafts waiting",
+          href: "/outreach",
+          severity: draftedThreadCount > 0 ? "neutral" : "good",
+        },
+        {
+          id: "gmail-sent",
+          label: "Gmail Sent",
+          value: sentGmailMessageCount,
+          description: sentGmailMessageCount > 0 ? "Outbound Gmail replies tracked in mailbox" : "No Gmail replies sent yet",
+          href: "/outreach",
+          severity: sentGmailMessageCount > 0 ? "neutral" : "warning",
+        },
         {
           id: "overdue-tasks",
           label: "Overdue Tasks",
