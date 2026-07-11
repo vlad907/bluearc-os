@@ -59,6 +59,14 @@ type EmailThread = {
   messages: EmailMessage[];
 };
 
+type GmailConnection = {
+  id: string;
+  email: string;
+  status: string;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+};
+
 type OutreachForm = {
   channel: OutreachChannel;
   direction: OutreachDirection;
@@ -163,6 +171,8 @@ export default function OutreachPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mailboxError, setMailboxError] = useState<string | null>(null);
+  const [gmailConnections, setGmailConnections] = useState<GmailConnection[]>([]);
+  const [loadingGmailStatus, setLoadingGmailStatus] = useState(false);
 
   const loadOutreach = useCallback(async (signal?: AbortSignal) => {
     if (!organizationId) {
@@ -246,6 +256,40 @@ export default function OutreachPage() {
     }
   }, [mailboxClassification, mailboxSearch, organizationId]);
 
+  const loadGmailStatus = useCallback(async (signal?: AbortSignal) => {
+    if (!organizationId) {
+      return;
+    }
+
+    setLoadingGmailStatus(true);
+
+    try {
+      const response = await fetch("/api/integrations/google/status", {
+        headers: { "x-organization-id": organizationId },
+        signal,
+      });
+      const payload = (await response.json()) as unknown;
+
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload, "Failed to load Gmail status"));
+      }
+
+      const connections =
+        payload && typeof payload === "object" && "connections" in payload && Array.isArray(payload.connections)
+          ? payload.connections as GmailConnection[]
+          : [];
+      setGmailConnections(connections);
+    } catch (statusError) {
+      if (statusError instanceof DOMException && statusError.name === "AbortError") {
+        return;
+      }
+
+      setGmailConnections([]);
+    } finally {
+      setLoadingGmailStatus(false);
+    }
+  }, [organizationId]);
+
   useEffect(() => {
     if (!organizationId) {
       return;
@@ -255,13 +299,14 @@ export default function OutreachPage() {
     const timer = window.setTimeout(() => {
       void loadOutreach(controller.signal);
       void loadMailbox(controller.signal);
+      void loadGmailStatus(controller.signal);
     }, 0);
 
     return () => {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [loadMailbox, loadOutreach, organizationId]);
+  }, [loadGmailStatus, loadMailbox, loadOutreach, organizationId]);
 
   const selectedThread = useMemo(
     () => threads.find((thread) => thread.id === selectedThreadId) ?? threads[0] ?? null,
@@ -271,6 +316,7 @@ export default function OutreachPage() {
   const selectedThreadHasGmailDraft = selectedThread?.messages.some((message) => (
     typeof message.metadata?.gmailDraftId === "string" && !message.metadata.gmailDraftSentAt
   )) ?? false;
+  const activeGmailConnection = gmailConnections.find((connection) => connection.status === "connected") ?? null;
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -391,6 +437,7 @@ export default function OutreachPage() {
 
       setMailboxMessage(`Gmail sync complete. Scanned ${counts.scanned ?? 0}, imported ${counts.importedMessages ?? 0}, skipped ${counts.skippedMessages ?? 0}.`);
       await loadMailbox();
+      await loadGmailStatus();
     } catch (syncError) {
       setMailboxError(syncError instanceof Error ? syncError.message : "Failed to sync Gmail");
     } finally {
@@ -592,6 +639,40 @@ export default function OutreachPage() {
 
       {activeTab === "mailbox" && (
         <div className="space-y-6">
+          <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Gmail Status</h3>
+                  <span className={classNames(
+                    "rounded-full px-2.5 py-1 text-xs font-medium",
+                    activeGmailConnection
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                      : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                  )}>
+                    {activeGmailConnection ? "connected" : loadingGmailStatus ? "checking" : "not connected"}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
+                  {activeGmailConnection
+                    ? `${activeGmailConnection.email}${activeGmailConnection.lastSyncedAt ? ` · last sync ${formatDate(activeGmailConnection.lastSyncedAt)}` : " · not synced yet"}`
+                    : "Connect Gmail in Settings before syncing or sending Gmail drafts."}
+                </p>
+                {activeGmailConnection?.lastError && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{activeGmailConnection.lastError}</p>
+                )}
+              </div>
+              <button
+                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                disabled={!organizationId || loadingGmailStatus}
+                onClick={() => void loadGmailStatus()}
+                type="button"
+              >
+                {loadingGmailStatus ? "Checking..." : "Refresh Gmail Status"}
+              </button>
+            </div>
+          </div>
+
           <form
             onSubmit={handleImportInbound}
             className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5"
@@ -606,7 +687,7 @@ export default function OutreachPage() {
               <div className="flex flex-wrap gap-2">
                 <button
                   className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                  disabled={!organizationId || syncingGmail}
+                  disabled={!organizationId || !activeGmailConnection || syncingGmail}
                   onClick={() => void handleSyncGmail()}
                   type="button"
                 >
@@ -744,7 +825,7 @@ export default function OutreachPage() {
                       </button>
                       <button
                         className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                        disabled={!selectedThreadHasSuggestion || creatingDraftThreadId === selectedThread.id}
+                        disabled={!activeGmailConnection || !selectedThreadHasSuggestion || creatingDraftThreadId === selectedThread.id}
                         onClick={() => void handleCreateGmailDraft(selectedThread.id)}
                         type="button"
                       >
@@ -752,7 +833,7 @@ export default function OutreachPage() {
                       </button>
                       <button
                         className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                        disabled={!selectedThreadHasGmailDraft || sendingDraftThreadId === selectedThread.id}
+                        disabled={!activeGmailConnection || !selectedThreadHasGmailDraft || sendingDraftThreadId === selectedThread.id}
                         onClick={() => void handleSendGmailDraft(selectedThread.id)}
                         type="button"
                       >
@@ -778,7 +859,19 @@ export default function OutreachPage() {
                         <p className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">{message.body}</p>
                         {message.suggestedBody && (
                           <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Suggested Reply</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Suggested Reply</p>
+                              {typeof message.metadata?.gmailDraftId === "string" && (
+                                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                  Gmail draft created
+                                </span>
+                              )}
+                              {typeof message.metadata?.gmailDraftSentAt === "string" && (
+                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                  Sent {formatDate(message.metadata.gmailDraftSentAt)}
+                                </span>
+                              )}
+                            </div>
                             <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">{message.suggestedSubject}</p>
                             <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{message.suggestedBody}</p>
                           </div>
