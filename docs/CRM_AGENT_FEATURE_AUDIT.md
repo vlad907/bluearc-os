@@ -34,6 +34,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Local model support: `local_openai` provider for LM Studio/Ollama/vLLM/llama.cpp-style OpenAI-compatible endpoints, attempted before paid providers when configured.
 - Provider-call observability: AI provider attempts are logged with provider/model, agent, prompt key, status, duration, character counts, token usage when returned, and error metadata; provider calls retry once before deterministic fallback.
 - AI usage dashboard: Settings now summarizes provider success/failure/skipped counts, token usage, latency, provider/agent breakdowns, and recent failures from `AiProviderCall`.
+- Auth foundation: first-user signup creates a User, secure password hash, first Organization, owner membership, and HTTP-only session cookie; login/logout/me routes restore the selected workspace in the client.
 
 ## Key Original Features Not Yet Fully Ported
 
@@ -49,6 +50,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Background pipeline worker for imported → research → draft → verify → draft/send progression.
 - Automated partner search sourcing from live web search APIs. Partner candidate storage, fit score, contact emails, contact form URL, status transitions, and conversion to leads now exist.
 - Lead pipeline status compatibility: discovered/imported/researching/researched/drafting/draft_ready/needs_review/approved/sent/replied/converted/archived.
+- Full authorization enforcement from session memberships across every API route. Manual `x-organization-id` remains a development bridge until all handlers verify membership server-side.
 
 ## Integration Direction
 
@@ -59,14 +61,15 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 - Prompt catalog from `src/lib/ai/crm-agent-prompts.ts` as the source of agent instructions.
 - Provider adapters for local OpenAI-compatible endpoints, OpenAI, and Anthropic behind app-native server routes.
 - Gmail integration as app-native OAuth and background jobs after auth/workspace identity is stabilized.
+- Use the User/OrganizationMember session model as the identity source for Gmail OAuth account linking, background jobs, and audit trails.
 
 ## Recommended Next Merge Passes
 
-1. Add rate limits, monthly budgets, and explicit dollar cost estimates on top of `AiProviderCall`.
-2. Add live partner web search using configured provider keys.
-3. Add Gmail OAuth connect/callback, draft creation, send, and inbox sync.
-4. Add encrypted OAuth token storage before any real Gmail account tokens are persisted.
-5. Add schema-validation retry prompts before deterministic fallback.
+1. Replace per-route manual org header trust with a shared session-membership authorization helper.
+2. Add rate limits, monthly budgets, and explicit dollar cost estimates on top of `AiProviderCall`.
+3. Add live partner web search using configured provider keys.
+4. Add Gmail OAuth connect/callback, draft creation, send, and inbox sync.
+5. Add encrypted OAuth token storage before any real Gmail account tokens are persisted.
 
 ## Future Model Consistency Work
 

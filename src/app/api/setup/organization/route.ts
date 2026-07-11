@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { getCurrentSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -79,20 +80,35 @@ export async function POST(request: Request) {
   }
 
   try {
-    const organization = await prisma.organization.create({
-      data: {
-        name,
-        slug,
-        settings: {
-          createdFrom: "development_setup",
+    const session = await getCurrentSession();
+    const organization = await prisma.$transaction(async (tx) => {
+      const createdOrganization = await tx.organization.create({
+        data: {
+          name,
+          slug,
+          settings: {
+            createdFrom: session ? "signed_in_workspace_setup" : "development_setup",
+          },
         },
-      },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        plan: true,
-      },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          plan: true,
+        },
+      });
+
+      if (session) {
+        await tx.organizationMember.create({
+          data: {
+            organizationId: createdOrganization.id,
+            userId: session.userId,
+            role: "owner",
+          },
+        });
+      }
+
+      return createdOrganization;
     });
 
     return Response.json({ organization }, { status: 201 });

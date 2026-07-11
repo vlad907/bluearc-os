@@ -94,7 +94,18 @@ const credentialPresets: CredentialPreset[] = [
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId, setOrganizationId, user, workspaces, refreshSession, logout } = useOrganization();
+  const [authMode, setAuthMode] = useState<"signup" | "login">("signup");
+  const [authStatus, setAuthStatus] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [submittingAuth, setSubmittingAuth] = useState(false);
+  const [authForm, setAuthForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    workspaceName: "Blue Arc Workspace",
+    workspaceSlug: "blue-arc-workspace",
+  });
   const [workspaceName, setWorkspaceName] = useState("Blue Arc Workspace");
   const [workspaceSlug, setWorkspaceSlug] = useState("blue-arc-workspace");
   const [setupStatus, setSetupStatus] = useState<string | null>(null);
@@ -279,6 +290,58 @@ export default function SettingsPage() {
 
     return () => window.clearTimeout(timer);
   }, [loadAiUsage, loadCredentials, loadWorkspaceProfile, organizationId]);
+
+  async function handleAuthSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmittingAuth(true);
+    setAuthStatus(null);
+    setAuthError(null);
+
+    try {
+      const response = await fetch(authMode === "signup" ? "/api/auth/signup" : "/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(authMode === "signup"
+          ? authForm
+          : { email: authForm.email, password: authForm.password }),
+      });
+      const payload = await response.json() as {
+        user?: { name: string; email: string } | null;
+        workspaces?: Array<{ id: string; name: string }>;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.user) {
+        throw new Error(payload.error ?? "Authentication failed");
+      }
+
+      await refreshSession();
+      const workspace = payload.workspaces?.[0];
+      if (workspace) {
+        setOrganizationId(workspace.id);
+      }
+      setAuthStatus(`${authMode === "signup" ? "Created account" : "Signed in"} as ${payload.user.email}.`);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Authentication failed");
+    } finally {
+      setSubmittingAuth(false);
+    }
+  }
+
+  async function handleLogout() {
+    setSubmittingAuth(true);
+    setAuthStatus(null);
+    setAuthError(null);
+
+    try {
+      await logout();
+      setAuthStatus("Signed out.");
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Failed to sign out");
+    } finally {
+      setSubmittingAuth(false);
+    }
+  }
 
   async function handleCreateWorkspace(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -489,9 +552,126 @@ export default function SettingsPage() {
       />
       <div className="space-y-6 max-w-3xl">
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Account + Workspace</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-500">
+                Fresh users can now create an account and first workspace in one step. The app auto-selects that workspace after login.
+              </p>
+            </div>
+            {user && (
+              <button
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+                disabled={submittingAuth}
+                onClick={handleLogout}
+                type="button"
+              >
+                Sign Out
+              </button>
+            )}
+          </div>
+
+          {user ? (
+            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300">
+              Signed in as <strong>{user.name}</strong> ({user.email}). Available workspaces: {workspaces.length || 0}.
+            </div>
+          ) : (
+            <form onSubmit={handleAuthSubmit} className="mt-5 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-4">
+              <div className="mb-4 flex gap-2">
+                {(["signup", "login"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                      authMode === mode
+                        ? "bg-indigo-600 text-white"
+                        : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-800 dark:hover:bg-gray-800"
+                    }`}
+                    onClick={() => setAuthMode(mode)}
+                    type="button"
+                  >
+                    {mode === "signup" ? "Create Account" : "Sign In"}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {authMode === "signup" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                      Name
+                    </label>
+                    <input
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                      value={authForm.name}
+                      onChange={(event) => setAuthForm((current) => ({ ...current, name: event.target.value }))}
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Email
+                  </label>
+                  <input
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                    type="email"
+                    value={authForm.email}
+                    onChange={(event) => setAuthForm((current) => ({ ...current, email: event.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Password
+                  </label>
+                  <input
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                    type="password"
+                    value={authForm.password}
+                    onChange={(event) => setAuthForm((current) => ({ ...current, password: event.target.value }))}
+                    required
+                  />
+                </div>
+                {authMode === "signup" && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                        Workspace Name
+                      </label>
+                      <input
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                        value={authForm.workspaceName}
+                        onChange={(event) => setAuthForm((current) => ({ ...current, workspaceName: event.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                        Workspace Slug
+                      </label>
+                      <input
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                        value={authForm.workspaceSlug}
+                        onChange={(event) => setAuthForm((current) => ({ ...current, workspaceSlug: event.target.value }))}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+              <button
+                className="mt-4 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={submittingAuth}
+                type="submit"
+              >
+                {submittingAuth ? "Working..." : authMode === "signup" ? "Create Account + Workspace" : "Sign In"}
+              </button>
+            </form>
+          )}
+          {authStatus && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{authStatus}</p>}
+          {authError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{authError}</p>}
+        </div>
+
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Workspace Setup</h3>
           <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
-            Create or select the workspace used by the app. This replaces manually hunting for an organization ID during development.
+            Create or select a workspace manually when developing without a signed-in account. Signed-in users should use the Account + Workspace flow above.
           </p>
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
             Before creating a workspace, start PostgreSQL and run migrations: <code>npm run db:dev:up</code> then <code>npm run db:migrate</code>.
@@ -551,7 +731,7 @@ export default function SettingsPage() {
             </button>
           </div>
           <p className="mt-3 text-xs text-gray-500 dark:text-gray-500">
-            This is still a temporary development flow. Production signup will create the workspace after authentication and resolve it server-side.
+            This remains a development fallback. Production requests should resolve workspace access from the signed-in session and membership.
           </p>
           <div className="mt-5 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
