@@ -158,6 +158,7 @@ export default function SettingsPage() {
   const [authStatus, setAuthStatus] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [submittingAuth, setSubmittingAuth] = useState(false);
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [authForm, setAuthForm] = useState({
     name: "",
     email: "",
@@ -438,6 +439,27 @@ export default function SettingsPage() {
   }, [organizationId]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("invite")?.trim();
+    const email = params.get("email")?.trim();
+
+    if (!token) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setInviteToken(token);
+      setAuthMode("signup");
+      setAuthStatus("Workspace invitation detected. Create an account or sign in with the invited email to accept it.");
+      if (email) {
+        setAuthForm((current) => ({ ...current, email }));
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     if (!organizationId.trim()) {
       return;
     }
@@ -505,8 +527,8 @@ export default function SettingsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(authMode === "signup"
-          ? authForm
-          : { email: authForm.email, password: authForm.password }),
+          ? { ...authForm, inviteToken }
+          : { email: authForm.email, password: authForm.password, inviteToken }),
       });
       const payload = await response.json() as {
         user?: { name: string; email: string } | null;
@@ -523,6 +545,7 @@ export default function SettingsPage() {
       if (workspace) {
         setOrganizationId(workspace.id);
       }
+      setInviteToken(null);
       setAuthStatus(`${authMode === "signup" ? "Created account" : "Signed in"} as ${payload.user.email}.`);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Authentication failed");
@@ -986,6 +1009,11 @@ export default function SettingsPage() {
             </div>
           ) : (
             <form onSubmit={handleAuthSubmit} className="mt-5 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-4">
+              {inviteToken && (
+                <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800 dark:border-indigo-900/60 dark:bg-indigo-950/30 dark:text-indigo-300">
+                  Workspace invitation ready. Use the invited email address; this will join that workspace instead of creating a separate one.
+                </div>
+              )}
               <div className="mb-4 flex gap-2">
                 {(["signup", "login"] as const).map((mode) => (
                   <button
@@ -1039,7 +1067,7 @@ export default function SettingsPage() {
                     required
                   />
                 </div>
-                {authMode === "signup" && (
+                {authMode === "signup" && !inviteToken && (
                   <>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -1069,7 +1097,7 @@ export default function SettingsPage() {
                 disabled={submittingAuth}
                 type="submit"
               >
-                {submittingAuth ? "Working..." : authMode === "signup" ? "Create Account + Workspace" : "Sign In"}
+                {submittingAuth ? "Working..." : inviteToken ? "Accept Invitation" : authMode === "signup" ? "Create Account + Workspace" : "Sign In"}
               </button>
             </form>
           )}

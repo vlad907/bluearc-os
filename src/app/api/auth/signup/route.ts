@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createUserSession, hashPassword, isUniqueConstraintError, normalizeEmail, publicSessionPayload, getCurrentSession } from "@/lib/auth/session";
+import { acceptWorkspaceInvitation } from "@/lib/auth/invitations";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ type SignupBody = {
   password?: unknown;
   workspaceName?: unknown;
   workspaceSlug?: unknown;
+  inviteToken?: unknown;
 };
 
 function jsonError(message: string, status: number) {
@@ -80,6 +82,7 @@ export async function POST(request: Request) {
     ? body.workspaceName.trim()
     : `${name || "Blue Arc"} Workspace`;
   const requestedSlug = typeof body.workspaceSlug === "string" ? body.workspaceSlug.trim() : "";
+  const inviteToken = typeof body.inviteToken === "string" && body.inviteToken.trim() ? body.inviteToken.trim() : null;
 
   if (name.length < 2) {
     return jsonError("Name must be at least 2 characters.", 400);
@@ -95,12 +98,12 @@ export async function POST(request: Request) {
     return jsonError(passwordError, 400);
   }
 
-  if (workspaceName.length < 2 || workspaceName.length > 100) {
+  if (!inviteToken && (workspaceName.length < 2 || workspaceName.length > 100)) {
     return jsonError("Workspace name must be 2-100 characters.", 400);
   }
 
   try {
-    const slug = await getAvailableSlug(slugify(requestedSlug || workspaceName));
+    const slug = inviteToken ? null : await getAvailableSlug(slugify(requestedSlug || workspaceName));
     const user = await prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
         data: {
@@ -111,10 +114,21 @@ export async function POST(request: Request) {
         select: { id: true },
       });
 
+      if (inviteToken) {
+        await acceptWorkspaceInvitation({
+          tx,
+          rawToken: inviteToken,
+          userId: createdUser.id,
+          email,
+        });
+
+        return createdUser;
+      }
+
       const organization = await tx.organization.create({
         data: {
           name: workspaceName,
-          slug,
+          slug: slug ?? "bluearc-workspace",
           settings: { createdFrom: "signup" },
         },
         select: { id: true },
@@ -127,49 +141,6 @@ export async function POST(request: Request) {
           role: "owner",
         },
       });
-
-      const pendingInvitations = await tx.workspaceInvitation.findMany({
-        where: {
-          email,
-          status: "pending",
-          expiresAt: { gt: new Date() },
-        },
-        select: {
-          id: true,
-          organizationId: true,
-          role: true,
-        },
-      });
-
-      for (const invitation of pendingInvitations) {
-        if (invitation.organizationId === organization.id) {
-          continue;
-        }
-
-        await tx.organizationMember.upsert({
-          where: {
-            organizationId_userId: {
-              organizationId: invitation.organizationId,
-              userId: createdUser.id,
-            },
-          },
-          update: { role: invitation.role },
-          create: {
-            organizationId: invitation.organizationId,
-            userId: createdUser.id,
-            role: invitation.role,
-          },
-        });
-
-        await tx.workspaceInvitation.update({
-          where: { id: invitation.id },
-          data: {
-            status: "accepted",
-            acceptedById: createdUser.id,
-            acceptedAt: new Date(),
-          },
-        });
-      }
 
       return createdUser;
     });
@@ -184,6 +155,10 @@ export async function POST(request: Request) {
 
     return Response.json(publicSessionPayload(session), { status: 201 });
   } catch (error) {
+    if (error instanceof Error && error.message.toLowerCase().includes("invitation")) {
+      return jsonError(error.message, 400);
+    }
+
     if (isUniqueConstraintError(error)) {
       return jsonError("An account already exists for that email.", 409);
     }

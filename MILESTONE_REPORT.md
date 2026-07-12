@@ -195,6 +195,7 @@ All findings are architectural recommendations for future implementation. None b
 - Added workspace member management APIs and Settings UI for listing members, adding existing signed-up users by email, changing roles, removing members, and protecting the final workspace owner.
 - Added pending workspace invitations for non-users, invitation revocation, Settings pending-invites display, and automatic invite acceptance when the invited email signs up.
 - Added optional outbound workspace invitation email delivery via Resend, with manual invite-link fallback when email is not configured.
+- Added tokenized invite acceptance for signup and login so invited users join the intended workspace without creating a duplicate workspace.
 - Replaced compatibility workspace null checks across API routes with explicit auth responses, including `403` for read-only viewer mutation attempts.
 - Added AI budget controls with monthly call/token limits, Settings UI, API configuration, and provider pre-call enforcement that logs budget-blocked calls as skipped.
 
