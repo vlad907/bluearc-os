@@ -100,6 +100,14 @@ export default function SearchPage() {
   }, [organizationId, trimmedQuery]);
 
   useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setQuery(new URLSearchParams(window.location.search).get("q") ?? "");
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
       void runSearch(controller.signal);

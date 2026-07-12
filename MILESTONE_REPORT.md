@@ -199,6 +199,7 @@ All findings are architectural recommendations for future implementation. None b
 - Replaced compatibility workspace null checks across API routes with explicit auth responses, including `403` for read-only viewer mutation attempts.
 - Added AI budget controls with monthly call/token limits, Settings UI, API configuration, and provider pre-call enforcement that logs budget-blocked calls as skipped.
 - Added global workspace search across companies, contacts, leads, jobs, vendors, and tasks with a dedicated Search page and sidebar entry.
+- Added a persistent topbar command search with `⌘K` focus, quick results dropdown, and handoff into the full Search page.
 
 ## Validation Results
 
