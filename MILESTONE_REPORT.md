@@ -203,6 +203,7 @@ All findings are architectural recommendations for future implementation. None b
 - Added typed search filters plus highlighted deep links from search results into the matching CRM list pages.
 - Added recent-record mode to Search so it acts as a workspace activity hub before a query is entered.
 - Improved Contacts workflow with a company picker, linked company names, and direct email/phone actions.
+- Improved Leads workflow with company/contact pickers, linked account context, and relation-safe lead creation.
 
 ## Validation Results
 

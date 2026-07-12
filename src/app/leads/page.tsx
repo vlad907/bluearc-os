@@ -1,6 +1,6 @@
 "use client";
 
-import React, { FormEvent, useEffect, useState } from "react";
+import React, { FormEvent, useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
 import { useOrganization } from "@/context/OrganizationContext";
 import { classNames, formatCurrency } from "@/lib/utils";
@@ -14,6 +14,9 @@ type Lead = {
   id: string;
   title: string;
   companyId: string | null;
+  contactId: string | null;
+  company: CompanyOption | null;
+  contact: ContactOption | null;
   stage: LeadStage;
   value: string | number | null;
   probability: number | null;
@@ -22,9 +25,36 @@ type Lead = {
   metadata: Record<string, unknown> | null;
 };
 
+type CompanyOption = {
+  id: string;
+  name: string;
+  website: string | null;
+  domain: string | null;
+};
+
+type ContactOption = {
+  id: string;
+  firstName: string;
+  lastName: string | null;
+  email: string | null;
+  companyId?: string | null;
+};
+
 type LeadsResponse = {
   leads?: Lead[];
   lead?: Lead;
+  error?: string;
+  errors?: string[];
+};
+
+type CompaniesResponse = {
+  companies?: CompanyOption[];
+  error?: string;
+  errors?: string[];
+};
+
+type ContactsResponse = {
+  contacts?: ContactOption[];
   error?: string;
   errors?: string[];
 };
@@ -86,7 +116,15 @@ function formatDate(value: string | null) {
 
 function getLeadWebsiteUrl(lead: Lead) {
   const websiteUrl = lead.metadata?.websiteUrl;
-  return typeof websiteUrl === "string" ? websiteUrl : "";
+  if (typeof websiteUrl === "string") {
+    return websiteUrl;
+  }
+
+  return lead.company?.website ?? lead.company?.domain ?? "";
+}
+
+function getContactName(contact: ContactOption) {
+  return [contact.firstName, contact.lastName].filter(Boolean).join(" ");
 }
 
 function getLeadResearchSummary(lead: Lead) {
@@ -113,6 +151,8 @@ export default function LeadsPage() {
   const { organizationId, setOrganizationId } = useOrganization();
   const highlightedId = useHighlightedRecordId();
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [contacts, setContacts] = useState<ContactOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -126,49 +166,76 @@ export default function LeadsPage() {
   const [value, setValue] = useState("");
   const [probability, setProbability] = useState("");
   const [expectedClose, setExpectedClose] = useState("");
+  const [companyId, setCompanyId] = useState("");
+  const [contactId, setContactId] = useState("");
 
-  useEffect(() => {
+  const fetchLeads = useCallback(async () => {
     if (!organizationId) {
+      setLeads([]);
       return;
     }
 
-    let cancelled = false;
+    setLoading(true);
+    setError(null);
 
-    async function fetchLeads() {
-      setLoading(true);
-      setError(null);
+    try {
+      const response = await fetch("/api/leads", {
+        headers: { "x-organization-id": organizationId },
+      });
+      const data = (await response.json()) as LeadsResponse;
 
-      try {
-        const response = await fetch("/api/leads", {
-          headers: { "x-organization-id": organizationId },
-        });
-        const data = (await response.json()) as LeadsResponse;
-
-        if (!response.ok) {
-          throw new Error(getApiError(data, "Failed to load leads"));
-        }
-
-        if (!cancelled) {
-          setLeads(data.leads ?? []);
-        }
-      } catch (fetchError) {
-        if (!cancelled) {
-          setError(fetchError instanceof Error ? fetchError.message : "Failed to load leads");
-          setLeads([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+      if (!response.ok) {
+        throw new Error(getApiError(data, "Failed to load leads"));
       }
+
+      setLeads(data.leads ?? []);
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : "Failed to load leads");
+      setLeads([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [organizationId]);
+
+  const fetchRelationshipOptions = useCallback(async () => {
+    if (!organizationId) {
+      setCompanies([]);
+      setContacts([]);
+      return;
     }
 
-    fetchLeads();
+    try {
+      const [companiesResponse, contactsResponse] = await Promise.all([
+        fetch("/api/companies", { headers: { "x-organization-id": organizationId } }),
+        fetch("/api/contacts", { headers: { "x-organization-id": organizationId } }),
+      ]);
 
-    return () => {
-      cancelled = true;
-    };
+      const companiesData = (await companiesResponse.json()) as CompaniesResponse;
+      const contactsData = (await contactsResponse.json()) as ContactsResponse;
+
+      if (!companiesResponse.ok) {
+        throw new Error(getApiError(companiesData, "Failed to load companies"));
+      }
+
+      if (!contactsResponse.ok) {
+        throw new Error(getApiError(contactsData, "Failed to load contacts"));
+      }
+
+      setCompanies(companiesData.companies ?? []);
+      setContacts(contactsData.contacts ?? []);
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : "Failed to load lead options");
+    }
   }, [organizationId]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void fetchLeads();
+      void fetchRelationshipOptions();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [fetchLeads, fetchRelationshipOptions]);
 
   function handleOrganizationIdChange(value: string) {
     const nextOrganizationId = value.trim();
@@ -176,6 +243,8 @@ export default function LeadsPage() {
 
     if (!nextOrganizationId) {
       setLeads([]);
+      setCompanies([]);
+      setContacts([]);
       setError(null);
     }
   }
@@ -194,6 +263,14 @@ export default function LeadsPage() {
       title: title.trim(),
       stage,
     };
+
+    if (companyId) {
+      payload.companyId = companyId;
+    }
+
+    if (contactId) {
+      payload.contactId = contactId;
+    }
 
     if (value.trim()) {
       payload.value = value.trim();
@@ -228,6 +305,8 @@ export default function LeadsPage() {
       setValue("");
       setProbability("");
       setExpectedClose("");
+      setCompanyId("");
+      setContactId("");
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Failed to create lead");
     } finally {
@@ -382,6 +461,35 @@ export default function LeadsPage() {
         />
         <select
           className="px-3 py-2 text-sm bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+          value={companyId}
+          onChange={(event) => {
+            setCompanyId(event.target.value);
+            setContactId("");
+          }}
+        >
+          <option value="">No company</option>
+          {companies.map((company) => (
+            <option key={company.id} value={company.id}>
+              {company.name}
+            </option>
+          ))}
+        </select>
+        <select
+          className="px-3 py-2 text-sm bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+          value={contactId}
+          onChange={(event) => setContactId(event.target.value)}
+        >
+          <option value="">No contact</option>
+          {contacts
+            .filter((contact) => !companyId || contact.companyId === companyId)
+            .map((contact) => (
+              <option key={contact.id} value={contact.id}>
+                {getContactName(contact)}{contact.email ? ` · ${contact.email}` : ""}
+              </option>
+            ))}
+        </select>
+        <select
+          className="px-3 py-2 text-sm bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
           value={stage}
           onChange={(event) => setStage(event.target.value as LeadStage)}
         >
@@ -442,6 +550,7 @@ export default function LeadsPage() {
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
                 <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Deal</th>
+                <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Account</th>
                 <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Stage</th>
                 <th className="text-right px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Value</th>
                 <th className="text-center px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Probability</th>
@@ -453,21 +562,21 @@ export default function LeadsPage() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {!organizationId && (
                 <tr>
-                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={7}>
+                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={8}>
                     Enter an organization ID to load leads.
                   </td>
                 </tr>
               )}
               {organizationId && loading && (
                 <tr>
-                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={7}>
+                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={8}>
                     Loading leads...
                   </td>
                 </tr>
               )}
               {organizationId && !loading && leads.length === 0 && (
                 <tr>
-                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={7}>
+                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={8}>
                     No leads yet.
                   </td>
                 </tr>
@@ -491,6 +600,14 @@ export default function LeadsPage() {
                         {researchSummary.oneLiner}
                       </div>
                     )}
+                  </td>
+                  <td className="px-5 py-4 text-gray-600 dark:text-gray-400">
+                    <div className="font-medium text-gray-900 dark:text-white">{lead.company?.name ?? "—"}</div>
+                    {lead.contact ? (
+                      <div className="text-xs text-gray-500 dark:text-gray-500">
+                        {getContactName(lead.contact)}{lead.contact.email ? ` · ${lead.contact.email}` : ""}
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-5 py-4">
                     <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${stageColors[lead.stage]}`}>

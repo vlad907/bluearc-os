@@ -146,6 +146,35 @@ function buildLeadData(body: CreateLeadBody) {
   return { data, errors };
 }
 
+async function validateLeadRelations(
+  organizationId: string,
+  data: Record<string, unknown>,
+) {
+  if (typeof data.companyId === "string" && data.companyId.trim()) {
+    const company = await prisma.company.findFirst({
+      where: { id: data.companyId.trim(), organizationId, deletedAt: null },
+      select: { id: true },
+    });
+
+    if (!company) {
+      return "Company not found";
+    }
+  }
+
+  if (typeof data.contactId === "string" && data.contactId.trim()) {
+    const contact = await prisma.contact.findFirst({
+      where: { id: data.contactId.trim(), organizationId, deletedAt: null },
+      select: { id: true },
+    });
+
+    if (!contact) {
+      return "Contact not found";
+    }
+  }
+
+  return null;
+}
+
 function handlePrismaError(error: unknown) {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2003") {
@@ -170,6 +199,24 @@ export async function GET(request: NextRequest) {
     const leads = await prisma.lead.findMany({
       where: { organizationId, deletedAt: null },
       orderBy: { createdAt: "desc" },
+      include: {
+        company: {
+          select: {
+            id: true,
+            name: true,
+            website: true,
+            domain: true,
+          },
+        },
+        contact: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
     });
 
     return Response.json({ leads });
@@ -205,12 +252,36 @@ export async function POST(request: NextRequest) {
     return Response.json({ errors }, { status: 400 });
   }
 
+  const relationError = await validateLeadRelations(organizationId, data);
+
+  if (relationError) {
+    return jsonError(relationError, 400);
+  }
+
   try {
     const lead = await prisma.lead.create({
       data: {
         organizationId,
         title,
         ...data,
+      },
+      include: {
+        company: {
+          select: {
+            id: true,
+            name: true,
+            website: true,
+            domain: true,
+          },
+        },
+        contact: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
       },
     });
 
