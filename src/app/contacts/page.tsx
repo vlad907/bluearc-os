@@ -16,6 +16,7 @@ const statusStyles: Record<string, string> = {
 type Contact = {
   id: string;
   companyId: string | null;
+  company: Pick<CompanyOption, "id" | "name"> | null;
   firstName: string;
   lastName: string | null;
   email: string | null;
@@ -23,6 +24,11 @@ type Contact = {
   title: string | null;
   role: string | null;
   status: string;
+};
+
+type CompanyOption = {
+  id: string;
+  name: string;
 };
 
 type ContactForm = {
@@ -37,6 +43,12 @@ type ContactForm = {
 type ContactsResponse = {
   contacts?: Contact[];
   contact?: Contact;
+  error?: string;
+  errors?: string[];
+};
+
+type CompaniesResponse = {
+  companies?: CompanyOption[];
   error?: string;
   errors?: string[];
 };
@@ -67,6 +79,7 @@ export default function ContactsPage() {
   const { organizationId, setOrganizationId } = useOrganization();
   const highlightedId = useHighlightedRecordId();
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [form, setForm] = useState<ContactForm>(emptyForm);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -100,10 +113,35 @@ export default function ContactsPage() {
     }
   }, [organizationId]);
 
+  const fetchCompanies = useCallback(async () => {
+    if (!organizationId.trim()) {
+      setCompanies([]);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/companies", {
+        headers: { "x-organization-id": organizationId.trim() },
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response));
+      }
+
+      const body = (await response.json()) as CompaniesResponse;
+      setCompanies(body.companies ?? []);
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : "Failed to load companies");
+    }
+  }, [organizationId]);
+
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => void fetchContacts(), 0);
+    const timeoutId = window.setTimeout(() => {
+      void fetchContacts();
+      void fetchCompanies();
+    }, 0);
     return () => window.clearTimeout(timeoutId);
-  }, [fetchContacts]);
+  }, [fetchCompanies, fetchContacts]);
 
   async function createContact(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -203,7 +241,10 @@ export default function ContactsPage() {
             <button
               className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-60"
               disabled={!organizationId.trim() || loading}
-              onClick={() => void fetchContacts()}
+              onClick={() => {
+                void fetchContacts();
+                void fetchCompanies();
+              }}
               type="button"
             >
               Refresh
@@ -247,12 +288,18 @@ export default function ContactsPage() {
           value={form.title}
           onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
         />
-        <input
+        <select
           className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-950 text-gray-900 dark:text-white"
-          placeholder="Company ID"
           value={form.companyId}
           onChange={(event) => setForm((current) => ({ ...current, companyId: event.target.value }))}
-        />
+        >
+          <option value="">No company</option>
+          {companies.map((company) => (
+            <option key={company.id} value={company.id}>
+              {company.name}
+            </option>
+          ))}
+        </select>
         <button
           className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-60 md:col-span-6"
           disabled={saving || !organizationId.trim()}
@@ -274,9 +321,8 @@ export default function ContactsPage() {
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
                 <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Name</th>
-                <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Email</th>
-                <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Phone</th>
-                <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Company ID</th>
+                <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Company</th>
+                <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Contact</th>
                 <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Title</th>
                 <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Status</th>
                 <th className="text-right px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Actions</th>
@@ -285,19 +331,19 @@ export default function ContactsPage() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {!organizationId.trim() ? (
                 <tr>
-                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={7}>
+                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={6}>
                     Enter an organization ID to load contacts.
                   </td>
                 </tr>
               ) : loading ? (
                 <tr>
-                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={7}>
+                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={6}>
                     Loading contacts...
                   </td>
                 </tr>
               ) : contacts.length === 0 ? (
                 <tr>
-                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={7}>
+                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={6}>
                     No contacts found.
                   </td>
                 </tr>
@@ -310,10 +356,27 @@ export default function ContactsPage() {
                       highlightedRecordClass(contact.id, highlightedId),
                     )}
                   >
-                    <td className="px-5 py-4 font-medium text-gray-900 dark:text-white">{getContactName(contact)}</td>
-                    <td className="px-5 py-4 text-gray-600 dark:text-gray-400">{contact.email || "—"}</td>
-                    <td className="px-5 py-4 text-gray-600 dark:text-gray-400">{contact.phone || "—"}</td>
-                    <td className="px-5 py-4 text-gray-600 dark:text-gray-400">{contact.companyId || "—"}</td>
+                    <td className="px-5 py-4">
+                      <div className="font-medium text-gray-900 dark:text-white">{getContactName(contact)}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-500">{contact.email || contact.phone || "No contact info"}</div>
+                    </td>
+                    <td className="px-5 py-4 text-gray-600 dark:text-gray-400">{contact.company?.name || "—"}</td>
+                    <td className="px-5 py-4">
+                      <div className="flex flex-col gap-1">
+                        {contact.email ? (
+                          <a className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300" href={`mailto:${contact.email}`}>
+                            {contact.email}
+                          </a>
+                        ) : (
+                          <span className="text-gray-500 dark:text-gray-500">No email</span>
+                        )}
+                        {contact.phone ? (
+                          <a className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white" href={`tel:${contact.phone}`}>
+                            {contact.phone}
+                          </a>
+                        ) : null}
+                      </div>
+                    </td>
                     <td className="px-5 py-4 text-gray-600 dark:text-gray-400">{contact.title || contact.role || "—"}</td>
                     <td className="px-5 py-4">
                       <span

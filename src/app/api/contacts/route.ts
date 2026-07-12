@@ -146,6 +146,14 @@ export async function GET(request: NextRequest) {
     const contacts = await prisma.contact.findMany({
       where: { organizationId, deletedAt: null },
       orderBy: { createdAt: "desc" },
+      include: {
+        company: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
     });
 
     return Response.json({ contacts });
@@ -193,6 +201,14 @@ export async function POST(request: NextRequest) {
         organizationId,
         firstName,
         ...data,
+      },
+      include: {
+        company: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
