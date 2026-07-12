@@ -617,3 +617,219 @@ export function providerErrorMetadata(error: unknown) {
     providerFallbackReason: error instanceof Error ? error.message : "Provider call failed",
   } satisfies Prisma.JsonObject;
 }
+
+export type PartnerSearchCompany = {
+  name: string;
+  website: string | null;
+  description: string | null;
+  relevanceReason: string | null;
+};
+
+export type PartnerSearchResult = {
+  provider: AiProvider["provider"];
+  model: string;
+  companies: PartnerSearchCompany[];
+};
+
+// Web search is a provider-native server tool. Anthropic's shape is verified;
+// pick the dynamic-filtering variant on models that support it, otherwise the
+// basic tool. Models older than the 4.6 family only accept the basic variant.
+function anthropicWebSearchToolType(model: string) {
+  const normalized = model.trim().toLowerCase();
+  const supportsDynamic =
+    normalized.startsWith("claude-opus-4-6") ||
+    normalized.startsWith("claude-opus-4-7") ||
+    normalized.startsWith("claude-opus-4-8") ||
+    normalized.startsWith("claude-sonnet-5") ||
+    normalized.startsWith("claude-sonnet-4-6");
+  return supportsDynamic ? "web_search_20260209" : "web_search_20250305";
+}
+
+function extractAnthropicAllText(payload: unknown) {
+  const objectPayload = asJsonObject(payload);
+  const content = Array.isArray(objectPayload?.content) ? objectPayload.content : [];
+  const parts: string[] = [];
+
+  for (const contentItem of content) {
+    const contentObject = asJsonObject(contentItem);
+    if (contentObject?.type === "text") {
+      const text = readString(contentObject.text);
+      if (text) {
+        parts.push(text);
+      }
+    }
+  }
+
+  return parts.join("\n");
+}
+
+async function callAnthropicWebSearchJson(
+  provider: AiProvider,
+  systemPrompt: string,
+  userPrompt: string,
+): Promise<ProviderJsonResult> {
+  const messages: Array<{ role: "user" | "assistant"; content: unknown }> = [
+    { role: "user", content: userPrompt },
+  ];
+  const usage = { requestTokens: 0, responseTokens: 0, totalTokens: 0 };
+
+  // The server-side tool loop can pause after ~10 internal iterations
+  // (stop_reason "pause_turn"); re-send the accumulated turns to resume.
+  for (let turn = 0; turn < 4; turn += 1) {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": provider.apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: provider.model,
+        max_tokens: 3000,
+        system: systemPrompt,
+        messages,
+        tools: [{ type: anthropicWebSearchToolType(provider.model), name: "web_search", max_uses: 5 }],
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Anthropic returned ${response.status}`);
+    }
+
+    const payload = await response.json() as unknown;
+    const turnUsage = extractAnthropicUsage(payload);
+    usage.requestTokens += turnUsage.requestTokens ?? 0;
+    usage.responseTokens += turnUsage.responseTokens ?? 0;
+    usage.totalTokens += turnUsage.totalTokens ?? (turnUsage.requestTokens ?? 0) + (turnUsage.responseTokens ?? 0);
+
+    const objectPayload = asJsonObject(payload);
+    if (objectPayload?.stop_reason === "pause_turn") {
+      messages.push({ role: "assistant", content: objectPayload.content });
+      continue;
+    }
+
+    const text = extractAnthropicAllText(payload);
+    const object = parseJsonObject(text);
+
+    if (!object) {
+      throw new Error("Anthropic web search returned non-JSON output");
+    }
+
+    return { output: object, outputChars: text.length, usage };
+  }
+
+  throw new Error("Anthropic web search did not finish within the turn limit");
+}
+
+function normalizePartnerCompany(value: unknown): PartnerSearchCompany | null {
+  const object = asJsonObject(value);
+  const name = readString(object?.company_name) || readString(object?.name);
+  if (!name) {
+    return null;
+  }
+
+  const website = readString(object?.website);
+  return {
+    name,
+    website: /^https?:\/\//i.test(website) ? website : null,
+    description: readString(object?.description) || null,
+    relevanceReason: readString(object?.relevance_reason) || readString(object?.relevanceReason) || null,
+  };
+}
+
+export async function runProviderPartnerSearch(
+  organizationId: string,
+  query: string,
+): Promise<PartnerSearchResult | null> {
+  const prompt = getCrmAgentPrompt("partnerSearch");
+  const provider = await getConfiguredAiProvider(organizationId);
+
+  if (!provider) {
+    await logProviderCall({
+      organizationId,
+      agent: "partner_search",
+      promptKey: prompt.key,
+      status: "skipped",
+      inputChars: prompt.prompt.length + query.length,
+      metadata: { reason: "No configured AI provider" },
+    });
+    return null;
+  }
+
+  // Live partner search needs a web-search-capable provider; only Anthropic's
+  // server tool is wired up. Skip honestly rather than inventing companies.
+  if (provider.provider !== "anthropic") {
+    await logProviderCall({
+      organizationId,
+      provider: provider.provider,
+      model: provider.model,
+      agent: "partner_search",
+      promptKey: prompt.key,
+      status: "skipped",
+      inputChars: prompt.prompt.length + query.length,
+      metadata: { reason: "Live partner web search requires a configured Anthropic provider" },
+    });
+    return null;
+  }
+
+  const budgetBlockReason = await getBudgetBlockReason(organizationId);
+  if (budgetBlockReason) {
+    await logProviderCall({
+      organizationId,
+      provider: provider.provider,
+      model: provider.model,
+      agent: "partner_search",
+      promptKey: prompt.key,
+      status: "skipped",
+      inputChars: prompt.prompt.length + query.length,
+      error: budgetBlockReason,
+      metadata: { reason: "AI usage budget blocked provider call" },
+    });
+    return null;
+  }
+
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const startedAt = Date.now();
+    try {
+      const result = await callAnthropicWebSearchJson(provider, prompt.prompt, query);
+      await logProviderCall({
+        organizationId,
+        provider: provider.provider,
+        model: provider.model,
+        agent: "partner_search",
+        promptKey: prompt.key,
+        status: "success",
+        durationMs: Date.now() - startedAt,
+        inputChars: prompt.prompt.length + query.length,
+        outputChars: result.outputChars,
+        usage: result.usage,
+        metadata: { attempt },
+      });
+
+      const rawCompanies = Array.isArray(result.output.companies) ? result.output.companies : [];
+      const companies = rawCompanies
+        .map(normalizePartnerCompany)
+        .filter((company): company is PartnerSearchCompany => company !== null);
+
+      return { provider: provider.provider, model: provider.model, companies };
+    } catch (error) {
+      lastError = error;
+      await logProviderCall({
+        organizationId,
+        provider: provider.provider,
+        model: provider.model,
+        agent: "partner_search",
+        promptKey: prompt.key,
+        status: "failed",
+        durationMs: Date.now() - startedAt,
+        inputChars: prompt.prompt.length + query.length,
+        error: error instanceof Error ? error.message : "Provider call failed",
+        metadata: { attempt },
+      });
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Partner search failed");
+}

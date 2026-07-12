@@ -45,7 +45,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 ## Key Original Features Not Yet Fully Ported
 
 - Local business discovery via Google Places, geocoding, radius/category search.
-- Provider-backed partnership web search. Manual partner candidate import and deterministic candidate ranking now exist.
+- Provider-backed partnership web search for OpenAI/local providers. Anthropic web-search-backed live partner search, manual partner candidate import, and deterministic candidate ranking now exist.
 - Multi-page website crawling beyond the manually submitted URL.
 - Background queueing for provider-backed Agent execution. Basic retry/logging/dashboarding/budget caps, a per-minute rate limit, and estimated per-call USD cost (with a monthly cost cap) are now present.
 - Send-as aliases for Gmail sending. Gmail OAuth connect/callback/disconnect/status, encrypted token storage, mailbox Gmail sync, and Gmail draft creation and send from mailbox threads are now implemented.
@@ -53,7 +53,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Raw API key credential storage. The app now stores env-var references and status checks instead of raw secrets.
 - Workspace AI strategy generation from profile. Profile storage, selected target categories, pain points, CTA style, and guardrails are now present.
 - Background pipeline worker for imported → research → draft → verify → draft/send progression.
-- Automated partner search sourcing from live web search APIs. Partner candidate storage, fit score, contact emails, contact form URL, status transitions, and conversion to leads now exist.
+- Automated partner search sourcing via non-Anthropic web search APIs and a background sourcing worker. Anthropic web-search-backed sourcing (`POST /api/partner-candidates/search`), partner candidate storage, fit score, contact emails, contact form URL, status transitions, and conversion to leads now exist.
 - Lead pipeline status compatibility: discovered/imported/researching/researched/drafting/draft_ready/needs_review/approved/sent/replied/converted/archived.
 - Role-specific permissions beyond read/write. Manual `x-organization-id` remains a development bridge and should be removed once every client path uses the signed-in workspace.
 - Outbound email delivery for pending workspace invitations.
@@ -73,7 +73,7 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 
 1. Remove the manual workspace-ID fallback from production paths. (Outbound invite emails via Resend are now implemented.)
 2. Add background queueing on top of `AiProviderCall`. (A per-minute rate limit, estimated per-call USD cost, and a monthly cost cap are now implemented.)
-3. Add live partner web search using configured provider keys.
+3. Extend live partner web search to OpenAI/local providers. (Anthropic web-search-backed partner search is now implemented at `POST /api/partner-candidates/search`.)
 4. Add send-as aliases and automated AI classification over synced Gmail messages. (Gmail OAuth connect/callback, draft creation, send, and inbox sync are now implemented.)
 5. Harden Gmail token handling. (Encrypted access/refresh token storage via `GmailConnection` is now implemented.)
 

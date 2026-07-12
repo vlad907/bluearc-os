@@ -30,6 +30,12 @@ type ApiPayload = {
   company?: { id: string; name: string };
   lead?: { id: string; title: string };
   task?: { id: string; title: string };
+  created?: PartnerCandidate[];
+  createdCount?: number;
+  skipped?: string[];
+  skippedCount?: number;
+  provider?: string;
+  model?: string;
   error?: string;
   errors?: string[];
 };
@@ -103,6 +109,8 @@ export default function PartnersPage() {
   const [candidates, setCandidates] = useState<PartnerCandidate[]>([]);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searching, setSearching] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -183,6 +191,34 @@ export default function PartnersPage() {
     }
   }
 
+  async function searchPartners() {
+    if (!organizationId) {
+      return;
+    }
+
+    setSearching(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const payload = await requestJson("/api/partner-candidates/search", organizationId, "POST", {
+        query: searchQuery.trim() || undefined,
+      });
+      const createdCount = payload.createdCount ?? 0;
+      const skippedCount = payload.skippedCount ?? 0;
+      const via = payload.model ? ` via ${payload.model}` : "";
+      setMessage(
+        `Partner search${via} found ${createdCount} new candidate${createdCount === 1 ? "" : "s"}` +
+          (skippedCount ? ` (${skippedCount} already tracked).` : "."),
+      );
+      await loadCandidates();
+    } catch (searchError) {
+      setError(searchError instanceof Error ? searchError.message : "Partner search failed");
+    } finally {
+      setSearching(false);
+    }
+  }
+
   async function analyzeCandidate(candidateId: string) {
     if (!organizationId) {
       return;
@@ -243,6 +279,31 @@ export default function PartnersPage() {
       />
 
       <div className="space-y-6">
+        <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+          <div className="mb-4">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Live Partner Search</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
+              Uses a configured Anthropic provider with web search to find real vendor/subcontractor partners. Leave the box blank to search from your workspace profile. AI budget and rate limits apply.
+            </p>
+          </div>
+          <input
+            className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+            placeholder="Optional: describe the partners to find (e.g. national HVAC dispatch networks in the Southeast)"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+          />
+          <div className="mt-4">
+            <button
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!organizationId || searching}
+              onClick={() => void searchPartners()}
+              type="button"
+            >
+              {searching ? "Searching..." : "Search for Partners"}
+            </button>
+          </div>
+        </div>
+
         <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-4">
             <h3 className="font-semibold text-gray-900 dark:text-white">Partner Candidate Import</h3>
