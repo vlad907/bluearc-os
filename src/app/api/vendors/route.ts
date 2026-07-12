@@ -120,6 +120,23 @@ function buildVendorData(body: CreateVendorBody) {
   return { data, errors };
 }
 
+async function validateCompanyId(organizationId: string, companyId: unknown) {
+  if (companyId === undefined || companyId === null) {
+    return null;
+  }
+
+  if (typeof companyId !== "string" || !companyId.trim()) {
+    return "companyId must be a string or null";
+  }
+
+  const company = await prisma.company.findFirst({
+    where: { id: companyId.trim(), organizationId, deletedAt: null },
+    select: { id: true },
+  });
+
+  return company ? null : "Company not found";
+}
+
 function handlePrismaError(error: unknown) {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2003") {
@@ -144,6 +161,14 @@ export async function GET(request: NextRequest) {
     const vendors = await prisma.vendor.findMany({
       where: { organizationId, deletedAt: null },
       orderBy: { createdAt: "desc" },
+      include: {
+        company: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
     });
 
     return Response.json({ vendors });
@@ -179,12 +204,26 @@ export async function POST(request: NextRequest) {
     return Response.json({ errors }, { status: 400 });
   }
 
+  const companyError = await validateCompanyId(organizationId, data.companyId);
+
+  if (companyError) {
+    return jsonError(companyError, 400);
+  }
+
   try {
     const vendor = await prisma.vendor.create({
       data: {
         organizationId,
         name,
         ...data,
+      },
+      include: {
+        company: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 

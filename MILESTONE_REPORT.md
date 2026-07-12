@@ -205,6 +205,7 @@ All findings are architectural recommendations for future implementation. None b
 - Improved Contacts workflow with a company picker, linked company names, and direct email/phone actions.
 - Improved Leads workflow with company/contact pickers, linked account context, and relation-safe lead creation.
 - Improved Jobs workflow with company/contact/vendor/lead pickers, linked card context, and relation-safe job creation.
+- Improved Vendors workflow with linked account selection, company context, and direct email/phone/website actions.
 
 ## Validation Results
 

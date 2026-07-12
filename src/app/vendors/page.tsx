@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
 import { useOrganization } from "@/context/OrganizationContext";
 import { classNames } from "@/lib/utils";
@@ -10,19 +10,31 @@ type VendorStatus = "active" | "inactive" | "blacklisted";
 
 type Vendor = {
   id: string;
+  companyId: string | null;
+  company: CompanyOption | null;
   name: string;
   category: string | null;
   contactName: string | null;
   email: string | null;
+  phone: string | null;
+  website: string | null;
   status: VendorStatus;
   rating: number | null;
 };
 
+type CompanyOption = {
+  id: string;
+  name: string;
+};
+
 type VendorForm = {
   name: string;
+  companyId: string;
   category: string;
   contactName: string;
   email: string;
+  phone: string;
+  website: string;
   status: VendorStatus;
 };
 
@@ -34,10 +46,26 @@ const statusStyles: Record<VendorStatus, string> = {
 
 const initialForm: VendorForm = {
   name: "",
+  companyId: "",
   category: "",
   contactName: "",
   email: "",
+  phone: "",
+  website: "",
   status: "active",
+};
+
+type VendorsResponse = {
+  vendors?: Vendor[];
+  vendor?: Vendor;
+  error?: string;
+  errors?: string[];
+};
+
+type CompaniesResponse = {
+  companies?: CompanyOption[];
+  error?: string;
+  errors?: string[];
 };
 
 function getErrorMessage(payload: unknown, fallback: string) {
@@ -58,53 +86,83 @@ export default function VendorsPage() {
   const { organizationId, setOrganizationId } = useOrganization();
   const highlightedId = useHighlightedRecordId();
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [form, setForm] = useState<VendorForm>(initialForm);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadVendors = useCallback(async (signal?: AbortSignal) => {
     if (!organizationId) {
+      setVendors([]);
       return;
     }
 
-    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
 
-    async function loadVendors() {
-      setLoading(true);
-      setError(null);
+    try {
+      const response = await fetch("/api/vendors", {
+        headers: { "x-organization-id": organizationId },
+        signal,
+      });
+      const payload = (await response.json()) as VendorsResponse;
 
-      try {
-        const response = await fetch("/api/vendors", {
-          headers: { "x-organization-id": organizationId },
-          signal: controller.signal,
-        });
-        const payload = (await response.json()) as unknown;
-
-        if (!response.ok) {
-          throw new Error(getErrorMessage(payload, "Failed to load vendors"));
-        }
-
-        setVendors(
-          payload && typeof payload === "object" && "vendors" in payload && Array.isArray(payload.vendors)
-            ? payload.vendors
-            : [],
-        );
-      } catch (loadError) {
-        if (loadError instanceof DOMException && loadError.name === "AbortError") {
-          return;
-        }
-
-        setError(loadError instanceof Error ? loadError.message : "Failed to load vendors");
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload, "Failed to load vendors"));
       }
+
+      setVendors(payload.vendors ?? []);
+    } catch (loadError) {
+      if (loadError instanceof DOMException && loadError.name === "AbortError") {
+        return;
+      }
+
+      setError(loadError instanceof Error ? loadError.message : "Failed to load vendors");
+    } finally {
+      setLoading(false);
+    }
+  }, [organizationId]);
+
+  const loadCompanies = useCallback(async (signal?: AbortSignal) => {
+    if (!organizationId) {
+      setCompanies([]);
+      return;
     }
 
-    void loadVendors();
+    try {
+      const response = await fetch("/api/companies", {
+        headers: { "x-organization-id": organizationId },
+        signal,
+      });
+      const payload = (await response.json()) as CompaniesResponse;
 
-    return () => controller.abort();
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload, "Failed to load companies"));
+      }
+
+      setCompanies(payload.companies ?? []);
+    } catch (loadError) {
+      if (loadError instanceof DOMException && loadError.name === "AbortError") {
+        return;
+      }
+
+      setError(loadError instanceof Error ? loadError.message : "Failed to load companies");
+    }
   }, [organizationId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      void loadVendors(controller.signal);
+      void loadCompanies(controller.signal);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [loadCompanies, loadVendors]);
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -125,19 +183,22 @@ export default function VendorsPage() {
         },
         body: JSON.stringify({
           name: form.name.trim(),
+          companyId: form.companyId || null,
           category: form.category.trim() || null,
           contactName: form.contactName.trim() || null,
           email: form.email.trim() || null,
+          phone: form.phone.trim() || null,
+          website: form.website.trim() || null,
           status: form.status,
         }),
       });
-      const payload = (await response.json()) as unknown;
+      const payload = (await response.json()) as VendorsResponse;
 
       if (!response.ok) {
         throw new Error(getErrorMessage(payload, "Failed to create vendor"));
       }
 
-      if (payload && typeof payload === "object" && "vendor" in payload) {
+      if (payload.vendor) {
         setVendors((current) => [payload.vendor as Vendor, ...current]);
       }
 
@@ -178,6 +239,7 @@ export default function VendorsPage() {
 
     if (!value.trim()) {
       setVendors([]);
+      setCompanies([]);
     }
   }
 
@@ -200,7 +262,7 @@ export default function VendorsPage() {
         onSubmit={handleCreate}
         className="mb-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5"
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
           <input
             className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
             placeholder="Vendor name"
@@ -208,6 +270,18 @@ export default function VendorsPage() {
             onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
             required
           />
+          <select
+            className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+            value={form.companyId}
+            onChange={(event) => setForm((current) => ({ ...current, companyId: event.target.value }))}
+          >
+            <option value="">No linked account</option>
+            {companies.map((company) => (
+              <option key={company.id} value={company.id}>
+                {company.name}
+              </option>
+            ))}
+          </select>
           <input
             className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
             placeholder="Category"
@@ -226,6 +300,18 @@ export default function VendorsPage() {
             type="email"
             value={form.email}
             onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+          />
+          <input
+            className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+            placeholder="Phone"
+            value={form.phone}
+            onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
+          />
+          <input
+            className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+            placeholder="Website"
+            value={form.website}
+            onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))}
           />
           <div className="flex gap-3">
             <select
@@ -273,6 +359,9 @@ export default function VendorsPage() {
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">{vendor.name}</h3>
                 <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">{vendor.category || "Uncategorized"}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
+                  Account: {vendor.company?.name ?? "Unlinked"}
+                </p>
               </div>
               <span className={classNames("text-xs font-medium px-2.5 py-1 rounded-full", statusStyles[vendor.status])}>
                 {vendor.status}
@@ -289,8 +378,36 @@ export default function VendorsPage() {
                 <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" />
                 </svg>
-                <span className="truncate">{vendor.email || "No email"}</span>
+                {vendor.email ? (
+                  <a className="truncate text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300" href={`mailto:${vendor.email}`}>
+                    {vendor.email}
+                  </a>
+                ) : (
+                  <span className="truncate">No email</span>
+                )}
               </div>
+              <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path d="M22 16.92v3a2 2 0 01-2.18 2A19.79 19.79 0 0111.19 19 19.5 19.5 0 015 12.81 19.79 19.79 0 012.08 4.18 2 2 0 014.06 2h3a2 2 0 012 1.72c.12.9.32 1.77.59 2.61a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.47-1.11a2 2 0 012.11-.45c.84.27 1.71.47 2.61.59A2 2 0 0122 16.92z" />
+                </svg>
+                {vendor.phone ? (
+                  <a className="truncate text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white" href={`tel:${vendor.phone}`}>
+                    {vendor.phone}
+                  </a>
+                ) : (
+                  <span className="truncate">No phone</span>
+                )}
+              </div>
+              {vendor.website ? (
+                <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path d="M12 2a10 10 0 100 20 10 10 0 000-20z" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 010 20" /><path d="M12 2a15.3 15.3 0 000 20" />
+                  </svg>
+                  <a className="truncate text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300" href={vendor.website} rel="noreferrer" target="_blank">
+                    {vendor.website}
+                  </a>
+                </div>
+              ) : null}
               {vendor.rating !== null && vendor.rating > 0 && (
                 <div className="flex items-center gap-1">
                   {Array.from({ length: 5 }).map((_, i) => (
