@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
 import { useOrganization } from "@/context/OrganizationContext";
 import { classNames } from "@/lib/utils";
+import { highlightedRecordClass, useHighlightedRecordId } from "@/lib/navigation/highlight";
 
 type JobStatus = "open" | "bidding" | "awarded" | "in_progress" | "completed" | "cancelled";
 type JobPriority = "low" | "medium" | "high" | "urgent";
@@ -86,6 +87,7 @@ function formatValue(value: Job["estimatedValue"]) {
 
 export default function JobsPage() {
   const { organizationId, setOrganizationId } = useOrganization();
+  const highlightedId = useHighlightedRecordId();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [form, setForm] = useState<JobForm>(initialForm);
   const [loading, setLoading] = useState(false);
@@ -308,7 +310,13 @@ export default function JobsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {jobs.map((job) => (
-          <div key={job.id} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5">
+          <div
+            key={job.id}
+            className={classNames(
+              "bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5 transition-colors",
+              highlightedRecordClass(job.id, highlightedId),
+            )}
+          >
             <div className="flex items-start justify-between mb-2">
               <h3 className="font-semibold text-gray-900 dark:text-white">{job.title}</h3>
               <span className={classNames("text-xs font-medium px-2.5 py-1 rounded-full", statusStyles[job.status])}>

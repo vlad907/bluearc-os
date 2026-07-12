@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
 import { useOrganization } from "@/context/OrganizationContext";
 import { classNames } from "@/lib/utils";
+import { highlightedRecordClass, useHighlightedRecordId } from "@/lib/navigation/highlight";
 
 type VendorStatus = "active" | "inactive" | "blacklisted";
 
@@ -55,6 +56,7 @@ function getErrorMessage(payload: unknown, fallback: string) {
 
 export default function VendorsPage() {
   const { organizationId, setOrganizationId } = useOrganization();
+  const highlightedId = useHighlightedRecordId();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [form, setForm] = useState<VendorForm>(initialForm);
   const [loading, setLoading] = useState(false);
@@ -260,7 +262,13 @@ export default function VendorsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {vendors.map((vendor) => (
-          <div key={vendor.id} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5">
+          <div
+            key={vendor.id}
+            className={classNames(
+              "bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5 transition-colors",
+              highlightedRecordClass(vendor.id, highlightedId),
+            )}
+          >
             <div className="flex items-start justify-between mb-3">
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">{vendor.name}</h3>

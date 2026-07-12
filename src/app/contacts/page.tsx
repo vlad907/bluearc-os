@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
 import { useOrganization } from "@/context/OrganizationContext";
 import { classNames } from "@/lib/utils";
+import { highlightedRecordClass, useHighlightedRecordId } from "@/lib/navigation/highlight";
 
 const statusStyles: Record<string, string> = {
   active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
@@ -64,6 +65,7 @@ function getContactName(contact: Contact) {
 
 export default function ContactsPage() {
   const { organizationId, setOrganizationId } = useOrganization();
+  const highlightedId = useHighlightedRecordId();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [form, setForm] = useState<ContactForm>(emptyForm);
   const [loading, setLoading] = useState(false);
@@ -301,7 +303,13 @@ export default function ContactsPage() {
                 </tr>
               ) : (
                 contacts.map((contact) => (
-                  <tr key={contact.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                  <tr
+                    key={contact.id}
+                    className={classNames(
+                      "hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors",
+                      highlightedRecordClass(contact.id, highlightedId),
+                    )}
+                  >
                     <td className="px-5 py-4 font-medium text-gray-900 dark:text-white">{getContactName(contact)}</td>
                     <td className="px-5 py-4 text-gray-600 dark:text-gray-400">{contact.email || "—"}</td>
                     <td className="px-5 py-4 text-gray-600 dark:text-gray-400">{contact.phone || "—"}</td>

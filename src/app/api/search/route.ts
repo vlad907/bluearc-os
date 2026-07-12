@@ -7,6 +7,9 @@ export const dynamic = "force-dynamic";
 
 const MAX_QUERY_LENGTH = 80;
 const MAX_PER_TYPE = 8;
+const searchTypes = ["all", "company", "contact", "lead", "job", "vendor", "task"] as const;
+
+type SearchType = typeof searchTypes[number];
 
 type SearchResult = {
   id: string;
@@ -22,8 +25,21 @@ function normalizedQuery(request: NextRequest) {
   return (request.nextUrl.searchParams.get("q") ?? "").trim().slice(0, MAX_QUERY_LENGTH);
 }
 
-function emptyResponse(query: string) {
-  return Response.json({ query, results: [], counts: {} });
+function requestedType(request: NextRequest): SearchType {
+  const type = request.nextUrl.searchParams.get("type")?.trim();
+  return searchTypes.includes(type as SearchType) ? type as SearchType : "all";
+}
+
+function shouldSearch(requested: SearchType, type: SearchType) {
+  return requested === "all" || requested === type;
+}
+
+function recordHref(path: string, id: string) {
+  return `${path}?highlight=${encodeURIComponent(id)}`;
+}
+
+function emptyResponse(query: string, type: SearchType) {
+  return Response.json({ query, type, results: [], counts: {} });
 }
 
 export async function GET(request: NextRequest) {
@@ -34,14 +50,15 @@ export async function GET(request: NextRequest) {
   }
 
   const query = normalizedQuery(request);
+  const type = requestedType(request);
 
   if (query.length < 2) {
-    return emptyResponse(query);
+    return emptyResponse(query, type);
   }
 
   const { organizationId } = workspace;
   const [companies, contacts, leads, jobs, vendors, tasks] = await Promise.all([
-    prisma.company.findMany({
+    shouldSearch(type, "company") ? prisma.company.findMany({
       where: {
         organizationId,
         deletedAt: null,
@@ -55,8 +72,8 @@ export async function GET(request: NextRequest) {
       orderBy: { updatedAt: "desc" },
       take: MAX_PER_TYPE,
       select: { id: true, name: true, industry: true, status: true, updatedAt: true },
-    }),
-    prisma.contact.findMany({
+    }) : Promise.resolve([]),
+    shouldSearch(type, "contact") ? prisma.contact.findMany({
       where: {
         organizationId,
         deletedAt: null,
@@ -80,8 +97,8 @@ export async function GET(request: NextRequest) {
         updatedAt: true,
         company: { select: { name: true } },
       },
-    }),
-    prisma.lead.findMany({
+    }) : Promise.resolve([]),
+    shouldSearch(type, "lead") ? prisma.lead.findMany({
       where: {
         organizationId,
         deletedAt: null,
@@ -101,8 +118,8 @@ export async function GET(request: NextRequest) {
         updatedAt: true,
         company: { select: { name: true } },
       },
-    }),
-    prisma.job.findMany({
+    }) : Promise.resolve([]),
+    shouldSearch(type, "job") ? prisma.job.findMany({
       where: {
         organizationId,
         deletedAt: null,
@@ -124,8 +141,8 @@ export async function GET(request: NextRequest) {
         updatedAt: true,
         company: { select: { name: true } },
       },
-    }),
-    prisma.vendor.findMany({
+    }) : Promise.resolve([]),
+    shouldSearch(type, "vendor") ? prisma.vendor.findMany({
       where: {
         organizationId,
         deletedAt: null,
@@ -140,8 +157,8 @@ export async function GET(request: NextRequest) {
       orderBy: { updatedAt: "desc" },
       take: MAX_PER_TYPE,
       select: { id: true, name: true, category: true, status: true, updatedAt: true },
-    }),
-    prisma.task.findMany({
+    }) : Promise.resolve([]),
+    shouldSearch(type, "task") ? prisma.task.findMany({
       where: {
         organizationId,
         deletedAt: null,
@@ -154,7 +171,7 @@ export async function GET(request: NextRequest) {
       orderBy: { updatedAt: "desc" },
       take: MAX_PER_TYPE,
       select: { id: true, title: true, status: true, priority: true, entityType: true, updatedAt: true },
-    }),
+    }) : Promise.resolve([]),
   ]);
 
   const results: SearchResult[] = [
@@ -163,7 +180,7 @@ export async function GET(request: NextRequest) {
       type: "company" as const,
       title: company.name,
       subtitle: company.industry,
-      href: "/companies",
+      href: recordHref("/companies", company.id),
       status: company.status,
       updatedAt: company.updatedAt,
     })),
@@ -172,7 +189,7 @@ export async function GET(request: NextRequest) {
       type: "contact" as const,
       title: [contact.firstName, contact.lastName].filter(Boolean).join(" "),
       subtitle: contact.company?.name ?? contact.email ?? contact.title,
-      href: "/contacts",
+      href: recordHref("/contacts", contact.id),
       status: contact.status,
       updatedAt: contact.updatedAt,
     })),
@@ -181,7 +198,7 @@ export async function GET(request: NextRequest) {
       type: "lead" as const,
       title: lead.title,
       subtitle: lead.company?.name ?? null,
-      href: "/leads",
+      href: recordHref("/leads", lead.id),
       status: lead.stage,
       updatedAt: lead.updatedAt,
     })),
@@ -190,7 +207,7 @@ export async function GET(request: NextRequest) {
       type: "job" as const,
       title: job.title,
       subtitle: job.company?.name ?? job.priority,
-      href: "/jobs",
+      href: recordHref("/jobs", job.id),
       status: job.status,
       updatedAt: job.updatedAt,
     })),
@@ -199,7 +216,7 @@ export async function GET(request: NextRequest) {
       type: "vendor" as const,
       title: vendor.name,
       subtitle: vendor.category,
-      href: "/vendors",
+      href: recordHref("/vendors", vendor.id),
       status: vendor.status,
       updatedAt: vendor.updatedAt,
     })),
@@ -208,7 +225,7 @@ export async function GET(request: NextRequest) {
       type: "task" as const,
       title: task.title,
       subtitle: task.entityType ?? task.priority,
-      href: "/tasks",
+      href: recordHref("/tasks", task.id),
       status: task.status,
       updatedAt: task.updatedAt,
     })),
@@ -216,6 +233,7 @@ export async function GET(request: NextRequest) {
 
   return Response.json({
     query,
+    type,
     results,
     counts: {
       companies: companies.length,

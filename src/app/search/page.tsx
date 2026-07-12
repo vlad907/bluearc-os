@@ -19,10 +19,23 @@ type SearchResult = {
 
 type SearchPayload = {
   query?: string;
+  type?: SearchType;
   results?: SearchResult[];
   counts?: Record<string, number>;
   error?: string;
 };
+
+type SearchType = "all" | SearchResult["type"];
+
+const searchTypes: Array<{ value: SearchType; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "company", label: "Companies" },
+  { value: "contact", label: "Contacts" },
+  { value: "lead", label: "Leads" },
+  { value: "job", label: "Jobs" },
+  { value: "vendor", label: "Vendors" },
+  { value: "task", label: "Tasks" },
+];
 
 const typeStyles: Record<SearchResult["type"], string> = {
   company: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
@@ -51,6 +64,7 @@ function formatDate(value: string) {
 export default function SearchPage() {
   const { organizationId, setOrganizationId } = useOrganization();
   const [query, setQuery] = useState("");
+  const [type, setType] = useState<SearchType>("all");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
@@ -74,6 +88,9 @@ export default function SearchPage() {
 
     try {
       const params = new URLSearchParams({ q: trimmedQuery });
+      if (type !== "all") {
+        params.set("type", type);
+      }
       const response = await fetch(`/api/search?${params.toString()}`, {
         headers: { "x-organization-id": organizationId.trim() },
         signal,
@@ -97,11 +114,17 @@ export default function SearchPage() {
     } finally {
       setLoading(false);
     }
-  }, [organizationId, trimmedQuery]);
+  }, [organizationId, trimmedQuery, type]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
-      setQuery(new URLSearchParams(window.location.search).get("q") ?? "");
+      const params = new URLSearchParams(window.location.search);
+      const queryParam = params.get("q") ?? "";
+      const typeParam = params.get("type") as SearchType | null;
+      setQuery(queryParam);
+      if (typeParam && searchTypes.some((item) => item.value === typeParam)) {
+        setType(typeParam);
+      }
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
@@ -147,6 +170,21 @@ export default function SearchPage() {
           onChange={(event) => setQuery(event.target.value)}
         />
         <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-500">
+          {searchTypes.map((item) => (
+            <button
+              key={item.value}
+              className={classNames(
+                "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                type === item.value
+                  ? "bg-indigo-600 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700",
+              )}
+              onClick={() => setType(item.value)}
+              type="button"
+            >
+              {item.label}
+            </button>
+          ))}
           {Object.entries(counts).map(([key, count]) => (
             <span key={key} className="rounded-full bg-gray-100 px-2 py-1 dark:bg-gray-800">
               {key}: {count}

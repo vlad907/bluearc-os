@@ -3,7 +3,8 @@
 import React, { FormEvent, useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
 import { useOrganization } from "@/context/OrganizationContext";
-import { formatCurrency } from "@/lib/utils";
+import { classNames, formatCurrency } from "@/lib/utils";
+import { highlightedRecordClass, useHighlightedRecordId } from "@/lib/navigation/highlight";
 
 const leadStages = ["new", "evaluating", "bidding", "submitted", "won", "lost"] as const;
 
@@ -110,6 +111,7 @@ function getLeadResearchSummary(lead: Lead) {
 
 export default function LeadsPage() {
   const { organizationId, setOrganizationId } = useOrganization();
+  const highlightedId = useHighlightedRecordId();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -475,7 +477,13 @@ export default function LeadsPage() {
                 const websiteUrl = researchUrls[lead.id] ?? getLeadWebsiteUrl(lead);
 
                 return (
-                <tr key={lead.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                <tr
+                  key={lead.id}
+                  className={classNames(
+                    "hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors",
+                    highlightedRecordClass(lead.id, highlightedId),
+                  )}
+                >
                   <td className="px-5 py-4 font-medium text-gray-900 dark:text-white">
                     <div>{lead.title}</div>
                     {researchSummary?.oneLiner && (

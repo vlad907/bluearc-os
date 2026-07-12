@@ -3,7 +3,8 @@
 import React, { FormEvent, useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
 import { useOrganization } from "@/context/OrganizationContext";
-import { getPriorityColor } from "@/lib/utils";
+import { classNames, getPriorityColor } from "@/lib/utils";
+import { highlightedRecordClass, useHighlightedRecordId } from "@/lib/navigation/highlight";
 
 const taskStatuses = ["todo", "in_progress", "done", "cancelled"] as const;
 const taskPriorities = ["low", "medium", "high", "urgent"] as const;
@@ -54,6 +55,7 @@ function getStatusLabel(status: TaskStatus) {
 
 export default function TasksPage() {
   const { organizationId, setOrganizationId } = useOrganization();
+  const highlightedId = useHighlightedRecordId();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -304,7 +306,13 @@ export default function TasksPage() {
                 const completed = task.status === "done";
 
                 return (
-                  <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                  <tr
+                    key={task.id}
+                    className={classNames(
+                      "hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors",
+                      highlightedRecordClass(task.id, highlightedId),
+                    )}
+                  >
                     <td className="px-5 py-4">
                       <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
                         completed
