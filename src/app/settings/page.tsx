@@ -37,10 +37,12 @@ type AiUsagePayload = {
     totalTokens: number;
     requestTokens: number;
     responseTokens: number;
+    estimatedCostUsd: number;
     averageDurationMs: number | null;
   };
   byProvider?: Record<string, number>;
   byAgent?: Record<string, number>;
+  costByProvider?: Record<string, number>;
   failures?: Array<{
     id: string;
     provider: string | null;
@@ -58,6 +60,8 @@ type AiBudgetPayload = {
     enforce: boolean;
     monthlyCallLimit: number | null;
     monthlyTokenLimit: number | null;
+    monthlyCostLimitUsd: number | null;
+    perMinuteCallLimit: number | null;
   };
   error?: string;
 };
@@ -191,6 +195,8 @@ export default function SettingsPage() {
     enforce: false,
     monthlyCallLimit: "",
     monthlyTokenLimit: "",
+    monthlyCostLimitUsd: "",
+    perMinuteCallLimit: "",
   });
   const [savingAiBudget, setSavingAiBudget] = useState(false);
   const [aiBudgetStatus, setAiBudgetStatus] = useState<string | null>(null);
@@ -379,6 +385,8 @@ export default function SettingsPage() {
         enforce: payload.budget.enforce,
         monthlyCallLimit: payload.budget.monthlyCallLimit === null ? "" : String(payload.budget.monthlyCallLimit),
         monthlyTokenLimit: payload.budget.monthlyTokenLimit === null ? "" : String(payload.budget.monthlyTokenLimit),
+        monthlyCostLimitUsd: payload.budget.monthlyCostLimitUsd === null ? "" : String(payload.budget.monthlyCostLimitUsd),
+        perMinuteCallLimit: payload.budget.perMinuteCallLimit === null ? "" : String(payload.budget.perMinuteCallLimit),
       });
     } catch (error) {
       setAiBudgetError(error instanceof Error ? error.message : "Failed to load AI budget");
@@ -499,6 +507,8 @@ export default function SettingsPage() {
           enforce: aiBudgetForm.enforce,
           monthlyCallLimit: aiBudgetForm.monthlyCallLimit,
           monthlyTokenLimit: aiBudgetForm.monthlyTokenLimit,
+          monthlyCostLimitUsd: aiBudgetForm.monthlyCostLimitUsd,
+          perMinuteCallLimit: aiBudgetForm.perMinuteCallLimit,
         }),
       });
       const payload = await response.json() as AiBudgetPayload;
@@ -1581,9 +1591,9 @@ export default function SettingsPage() {
           onSubmit={handleSaveAiBudget}
           className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6"
         >
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">AI Budget Controls</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">AI Budget + Rate Controls</h3>
           <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
-            Set monthly guardrails before provider-backed agents run. Blank limits are ignored.
+            Set monthly guardrails and a per-minute rate limit before provider-backed agents run. Blank limits are ignored. Cost limits use estimated USD pricing.
           </p>
           <label className="mb-4 flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
             <input
@@ -1618,6 +1628,30 @@ export default function SettingsPage() {
                 onChange={(event) => setAiBudgetForm((current) => ({ ...current, monthlyTokenLimit: event.target.value }))}
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Monthly Cost Limit (USD)
+              </label>
+              <input
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                inputMode="decimal"
+                placeholder="Example: 25.00"
+                value={aiBudgetForm.monthlyCostLimitUsd}
+                onChange={(event) => setAiBudgetForm((current) => ({ ...current, monthlyCostLimitUsd: event.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Per-Minute Call Limit
+              </label>
+              <input
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                inputMode="numeric"
+                placeholder="Example: 10"
+                value={aiBudgetForm.perMinuteCallLimit}
+                onChange={(event) => setAiBudgetForm((current) => ({ ...current, perMinuteCallLimit: event.target.value }))}
+              />
+            </div>
           </div>
           <button
             className="mt-4 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1635,7 +1669,7 @@ export default function SettingsPage() {
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-white mb-1">AI Usage + Provider Health</h3>
               <p className="text-sm text-gray-500 dark:text-gray-500">
-                Last 30 days of provider attempts, retries, skips, token usage, and recent failures.
+                Last 30 days of provider attempts, retries, skips, token usage, estimated cost, and recent failures.
               </p>
             </div>
             <button
@@ -1657,6 +1691,7 @@ export default function SettingsPage() {
                   ["Failed", aiUsage.totals.failed],
                   ["Skipped", aiUsage.totals.skipped],
                   ["Tokens", aiUsage.totals.totalTokens],
+                  ["Est. Cost", `$${aiUsage.totals.estimatedCostUsd.toFixed(2)}`],
                   ["Input Tokens", aiUsage.totals.requestTokens],
                   ["Output Tokens", aiUsage.totals.responseTokens],
                   ["Avg Latency", aiUsage.totals.averageDurationMs === null ? "—" : `${aiUsage.totals.averageDurationMs}ms`],
@@ -1675,7 +1710,12 @@ export default function SettingsPage() {
                     {Object.entries(aiUsage.byProvider ?? {}).map(([provider, count]) => (
                       <div className="flex justify-between" key={provider}>
                         <span>{provider}</span>
-                        <span>{count}</span>
+                        <span>
+                          {count}
+                          <span className="ml-2 text-gray-400 dark:text-gray-500">
+                            ${(aiUsage.costByProvider?.[provider] ?? 0).toFixed(2)}
+                          </span>
+                        </span>
                       </div>
                     ))}
                     {Object.keys(aiUsage.byProvider ?? {}).length === 0 && <p>No provider calls yet.</p>}

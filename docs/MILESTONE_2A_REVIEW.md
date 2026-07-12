@@ -7,7 +7,7 @@
 
 ## 1. Milestone Status
 
-**Complete.** Milestone 2A delivered the full design-phase documentation for Blue Arc OS. All five documents are versioned (1.0.0), cross-referenced, and ready to guide implementation in Milestone 2B.
+**Complete.** Milestone 2A delivered the full design-phase documentation for Blue Arc OS. All five documents are versioned, cross-referenced, and ready to guide implementation in Milestone 2B. (`SYSTEM_ARCHITECTURE.md` has since advanced to 2.0.0; the other four remain at 1.0.0.)
 
 ---
 
@@ -74,7 +74,7 @@ Documents are internally consistent, cross-referenced, and technically sound. No
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Database | PostgreSQL via Supabase | Managed service, connection pooling, RLS, real-time subscriptions |
-| ORM | Prisma 6 | Type-safe queries, declarative schema, migration tooling |
+| ORM | Prisma 7 | Type-safe queries, declarative schema, migration tooling |
 | Primary keys | UUIDs | No enumeration risk, safe in URLs, distributed-friendly |
 | Multi-tenancy | Row-level via `organizationId` | Simple, RLS-compatible, no schema duplication |
 | API style | REST with standard envelope | Predictable, cacheable, tooling-friendly |

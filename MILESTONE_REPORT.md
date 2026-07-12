@@ -63,7 +63,7 @@
 | **Status**        | Complete              |
 | **Documents**     | 5 design docs + review|
 | **Product Mgr**   | IN SCOPE              |
-| **Security**      | PASS (3H/8M/10L)      |
+| **Security**      | PASS (3H/10M/12L)     |
 | **QA**            | PASS                  |
 | **Next milestone**| Pending human approval|
 
@@ -78,7 +78,7 @@
 
 ### Review Results
 - **Product Manager**: IN SCOPE — All 8 domains covered, future AI/integrations properly scoped, no scope creep
-- **Security**: PASS — 3 HIGH (JWT mutable claims, RLS policies incomplete, OAuth tokens unencrypted), 8 MEDIUM, 10 LOW findings — all architectural recommendations for future implementation
+- **Security**: PASS — 3 HIGH (JWT mutable claims, RLS policies incomplete, OAuth tokens unencrypted), 10 MEDIUM, 12 LOW findings — all architectural recommendations for future implementation
 - **QA**: PASS — All 5 documents present, comprehensive, internally consistent, cross-referenced
 
 ## Key Design Decisions
@@ -103,7 +103,7 @@
 4. Implement API routes matching contracts
 5. Extract UI components from Milestone 1 pages
 6. Build domain-specific pages (Companies, Contacts, Leads, etc.)
-7. Implement client-side state management (Zustand)
+7. Implement client-side state management (React Context)
 8. Connect UI to API routes
 
 ## Security Findings Summary
@@ -113,7 +113,7 @@
 - RLS policies are commented out — implement on all tenant-scoped tables
 - OAuth tokens stored unencrypted — encrypt at rest with AES-256-GCM
 
-**8 MEDIUM** (address before production):
+**10 MEDIUM** (address before production):
 - Refresh token rotation without family tracking
 - Registration lacks bot protection
 - Manager role permissions unclear
@@ -125,7 +125,7 @@
 - No secrets rotation strategy
 - OAuth state/PKCE not documented
 
-**10 LOW** (address as needed):
+**12 LOW** (address as needed):
 - No breached password detection
 - Polymorphic entity auth rules undefined
 - No request size limits
@@ -134,7 +134,7 @@
 - Metadata JSON field is a data leak vector
 - AI cache could leak cross-tenant data
 - Webhook idempotency key storage undefined
-- No `.env.example` file
+- ~~No `.env.example` file~~ — resolved: `.env.example` added
 - DIRECT_DATABASE_URL could be misused at runtime
 - No backup/recovery testing plan
 - IntegrationConnection tokens need encryption spec
@@ -208,6 +208,8 @@ All findings are architectural recommendations for future implementation. None b
 - Improved Vendors workflow with linked account selection, company context, and direct email/phone/website actions.
 - Improved Tasks workflow with linked record selectors, polymorphic entity validation, and linked task context.
 - Improved Outreach log workflow with company/contact/lead/job selectors, relation-safe creation, and linked CRM context.
+- Added Gmail OAuth integration with connect/callback/disconnect/status routes, encrypted access/refresh token storage via `GmailConnection`, mailbox Gmail sync, and Gmail draft creation and send from mailbox threads.
+- Added AI cost and rate controls on top of `AiProviderCall`: estimated per-call USD cost from a model pricing table (`src/lib/ai/pricing.ts`), a per-minute call rate limit, a monthly cost cap, provider pre-call enforcement of both, and a Settings usage dashboard that surfaces estimated cost totals and per-provider spend.
 
 ## Validation Results
 

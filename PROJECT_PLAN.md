@@ -5,6 +5,14 @@ A field-service operating system for Blue Arc Networks. Manages bids, jobs, vend
 
 ## Milestones
 
+> **Note:** The milestone sequence below reflects the original design-phase plan.
+> Actual implementation has diverged — Milestone 2B already delivered auth,
+> RBAC, multi-tenancy, workspace invitations, AI agents (website research,
+> draft, verifier), provider adapters, and Gmail integration (work originally
+> scoped to Milestones 3–5). See [MILESTONE_REPORT.md](./MILESTONE_REPORT.md)
+> for the authoritative record of what has actually shipped. Client-side state
+> is implemented with React Context, not Zustand.
+
 ### Milestone 1: App Shell — COMPLETE
 - Next.js 16 scaffold with TypeScript and Tailwind CSS 4
 - Left sidebar navigation: Dashboard, Companies, Contacts, Leads, Vendors, Jobs, Tasks, Settings
@@ -32,7 +40,7 @@ A field-service operating system for Blue Arc Networks. Manages bids, jobs, vend
 - Lead-to-bid pipeline
 
 ### Milestone 3: State Management and API Layer (Future)
-- Zustand for client-side state
+- React Context for client-side state
 - Service layer for business logic
 - API routes matching contracts
 - CRUD operations with Prisma

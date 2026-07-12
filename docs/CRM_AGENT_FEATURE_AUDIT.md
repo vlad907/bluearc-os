@@ -47,10 +47,9 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Local business discovery via Google Places, geocoding, radius/category search.
 - Provider-backed partnership web search. Manual partner candidate import and deterministic candidate ranking now exist.
 - Multi-page website crawling beyond the manually submitted URL.
-- Production hardening for provider-backed Agent execution beyond basic retry/logging/dashboarding/budget caps, including rate limits, queueing, and explicit dollar cost estimates.
-- Gmail draft creation from approved EmailDraft records.
-- Gmail OAuth, draft creation, send-as aliases, inbox sync, and reply sending.
-- Full inbox sync, AI classification, and approve/reject reply actions. Basic mailbox thread/message storage and suggested reply generation are now present.
+- Background queueing for provider-backed Agent execution. Basic retry/logging/dashboarding/budget caps, a per-minute rate limit, and estimated per-call USD cost (with a monthly cost cap) are now present.
+- Send-as aliases for Gmail sending. Gmail OAuth connect/callback/disconnect/status, encrypted token storage, mailbox Gmail sync, and Gmail draft creation and send from mailbox threads are now implemented.
+- Automated AI classification and approve/reject reply actions over synced Gmail messages. Basic mailbox thread/message storage, Gmail sync, and suggested reply generation are now present.
 - Raw API key credential storage. The app now stores env-var references and status checks instead of raw secrets.
 - Workspace AI strategy generation from profile. Profile storage, selected target categories, pain points, CTA style, and guardrails are now present.
 - Background pipeline worker for imported → research → draft → verify → draft/send progression.
@@ -72,11 +71,11 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 
 ## Recommended Next Merge Passes
 
-1. Add outbound invite emails and remove the manual workspace-ID fallback from production paths.
-2. Add rate limits and explicit dollar cost estimates on top of `AiProviderCall`.
+1. Remove the manual workspace-ID fallback from production paths. (Outbound invite emails via Resend are now implemented.)
+2. Add background queueing on top of `AiProviderCall`. (A per-minute rate limit, estimated per-call USD cost, and a monthly cost cap are now implemented.)
 3. Add live partner web search using configured provider keys.
-4. Add Gmail OAuth connect/callback, draft creation, send, and inbox sync.
-5. Add encrypted OAuth token storage before any real Gmail account tokens are persisted.
+4. Add send-as aliases and automated AI classification over synced Gmail messages. (Gmail OAuth connect/callback, draft creation, send, and inbox sync are now implemented.)
+5. Harden Gmail token handling. (Encrypted access/refresh token storage via `GmailConnection` is now implemented.)
 
 ## Future Model Consistency Work
 

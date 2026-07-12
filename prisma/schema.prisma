@@ -247,11 +247,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  memberships OrganizationMember[]
-  sessions    UserSession[]
-  sentInvitations WorkspaceInvitation[] @relation("WorkspaceInvitationInviter")
+  memberships         OrganizationMember[]
+  sessions            UserSession[]
+  sentInvitations     WorkspaceInvitation[] @relation("WorkspaceInvitationInviter")
   acceptedInvitations WorkspaceInvitation[] @relation("WorkspaceInvitationAcceptedBy")
-  gmailConnections GmailConnection[]
+  gmailConnections    GmailConnection[]
 
   @@map("users")
 }
@@ -274,12 +274,12 @@ model OrganizationMember {
 }
 
 model UserSession {
-  id        String   @id @default(uuid())
-  userId    String
-  tokenHash String   @unique
-  expiresAt DateTime
+  id         String   @id @default(uuid())
+  userId     String
+  tokenHash  String   @unique
+  expiresAt  DateTime
   lastSeenAt DateTime @default(now())
-  createdAt DateTime @default(now())
+  createdAt  DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -623,6 +623,7 @@ model EmailThread {
   outreach     Outreach?      @relation(fields: [outreachId], references: [id], onDelete: SetNull)
   messages     EmailMessage[]
 
+  @@unique([organizationId, provider, providerThreadId])
   @@index([organizationId])
   @@index([companyId])
   @@index([contactId])
@@ -631,7 +632,6 @@ model EmailThread {
   @@index([status])
   @@index([classification])
   @@index([lastMessageAt])
-  @@unique([organizationId, provider, providerThreadId])
   @@map("email_threads")
 }
 
@@ -659,13 +659,13 @@ model EmailMessage {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   thread       EmailThread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
+  @@unique([organizationId, providerMessageId])
   @@index([organizationId])
   @@index([threadId])
   @@index([direction])
   @@index([classification])
   @@index([receivedAt])
   @@index([sentAt])
-  @@unique([organizationId, providerMessageId])
   @@map("email_messages")
 }
 
@@ -769,22 +769,23 @@ model GmailConnection {
 }
 
 model AiProviderCall {
-  id             String               @id @default(uuid())
-  organizationId String
-  provider       IntegrationProvider?
-  model          String?
-  agent          String
-  promptKey      String?
-  status         AiProviderCallStatus
-  durationMs     Int?
-  inputChars     Int?
-  outputChars    Int?
-  requestTokens  Int?
-  responseTokens Int?
-  totalTokens    Int?
-  error          String?
-  metadata       Json?
-  createdAt      DateTime             @default(now())
+  id               String               @id @default(uuid())
+  organizationId   String
+  provider         IntegrationProvider?
+  model            String?
+  agent            String
+  promptKey        String?
+  status           AiProviderCallStatus
+  durationMs       Int?
+  inputChars       Int?
+  outputChars      Int?
+  requestTokens    Int?
+  responseTokens   Int?
+  totalTokens      Int?
+  estimatedCostUsd Float?
+  error            String?
+  metadata         Json?
+  createdAt        DateTime             @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -797,13 +798,15 @@ model AiProviderCall {
 }
 
 model AiUsageBudget {
-  id                String   @id @default(uuid())
-  organizationId    String   @unique
-  enforce           Boolean  @default(false)
-  monthlyCallLimit  Int?
-  monthlyTokenLimit Int?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                  String   @id @default(uuid())
+  organizationId      String   @unique
+  enforce             Boolean  @default(false)
+  monthlyCallLimit    Int?
+  monthlyTokenLimit   Int?
+  monthlyCostLimitUsd Float?
+  perMinuteCallLimit  Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 

@@ -11,6 +11,8 @@ type BudgetBody = {
   enforce?: unknown;
   monthlyCallLimit?: unknown;
   monthlyTokenLimit?: unknown;
+  monthlyCostLimitUsd?: unknown;
+  perMinuteCallLimit?: unknown;
 };
 
 function jsonError(message: string, status: number) {
@@ -39,6 +41,21 @@ function parseOptionalPositiveInt(value: unknown, field: string) {
   return { value: parsed };
 }
 
+function parseOptionalPositiveAmount(value: unknown, field: string) {
+  if (value === null || value === undefined || value === "") {
+    return { value: null };
+  }
+
+  const parsed = typeof value === "number" ? value : Number(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return { error: `${field} must be a positive amount or blank` };
+  }
+
+  // Store at most cent precision for a dollar budget.
+  return { value: Math.round(parsed * 100) / 100 };
+}
+
 export async function GET(request: NextRequest) {
   const access = await resolveWorkspaceAccess(request);
 
@@ -56,6 +73,8 @@ export async function GET(request: NextRequest) {
       enforce: false,
       monthlyCallLimit: null,
       monthlyTokenLimit: null,
+      monthlyCostLimitUsd: null,
+      perMinuteCallLimit: null,
     },
   });
 }
@@ -75,6 +94,8 @@ export async function PATCH(request: NextRequest) {
 
   const callLimit = parseOptionalPositiveInt(body.monthlyCallLimit, "monthlyCallLimit");
   const tokenLimit = parseOptionalPositiveInt(body.monthlyTokenLimit, "monthlyTokenLimit");
+  const rateLimit = parseOptionalPositiveInt(body.perMinuteCallLimit, "perMinuteCallLimit");
+  const costLimit = parseOptionalPositiveAmount(body.monthlyCostLimitUsd, "monthlyCostLimitUsd");
 
   if (callLimit.error) {
     return jsonError(callLimit.error, 400);
@@ -84,18 +105,30 @@ export async function PATCH(request: NextRequest) {
     return jsonError(tokenLimit.error, 400);
   }
 
+  if (rateLimit.error) {
+    return jsonError(rateLimit.error, 400);
+  }
+
+  if (costLimit.error) {
+    return jsonError(costLimit.error, 400);
+  }
+
   const budget = await prisma.aiUsageBudget.upsert({
     where: { organizationId: auth.organizationId },
     update: {
       enforce: body.enforce === true,
       monthlyCallLimit: callLimit.value,
       monthlyTokenLimit: tokenLimit.value,
+      monthlyCostLimitUsd: costLimit.value,
+      perMinuteCallLimit: rateLimit.value,
     },
     create: {
       organizationId: auth.organizationId,
       enforce: body.enforce === true,
       monthlyCallLimit: callLimit.value,
       monthlyTokenLimit: tokenLimit.value,
+      monthlyCostLimitUsd: costLimit.value,
+      perMinuteCallLimit: rateLimit.value,
     },
   });
 

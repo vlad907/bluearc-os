@@ -3,6 +3,7 @@
 > Version: 2.0.0
 > Last updated: 2026-07-07
 > Status: Design phase
+> Implementation note: This is a design-phase document and may lead or lag the code (entity counts, agent taxonomy, and field-service scope described here are aspirational). See [MILESTONE_REPORT.md](../MILESTONE_REPORT.md) for what has actually shipped.
 
 ---
 

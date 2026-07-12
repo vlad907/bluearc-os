@@ -3,6 +3,7 @@
 > Version: 1.0.0
 > Last updated: 2026-07-07
 > Status: Design phase
+> Implementation note: This is a design-phase document and may lead or lag the code (the live Prisma schema has grown to 25 models / 25 enums). See [MILESTONE_REPORT.md](../MILESTONE_REPORT.md) and `prisma/schema.prisma` for the actual schema.
 > Companion document: [SYSTEM_ARCHITECTURE.md](./SYSTEM_ARCHITECTURE.md)
 
 ---

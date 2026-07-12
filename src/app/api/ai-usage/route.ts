@@ -64,6 +64,12 @@ export async function GET(request: NextRequest) {
       accumulator[call.agent] = (accumulator[call.agent] ?? 0) + 1;
       return accumulator;
     }, {});
+    const roundUsd = (value: number) => Math.round(value * 10000) / 10000;
+    const costByProvider = calls.reduce<Record<string, number>>((accumulator, call) => {
+      const provider = call.provider ?? "none";
+      accumulator[provider] = roundUsd((accumulator[provider] ?? 0) + (call.estimatedCostUsd ?? 0));
+      return accumulator;
+    }, {});
     const failures = calls
       .filter((call) => call.status === "failed")
       .slice(0, 10)
@@ -93,11 +99,13 @@ export async function GET(request: NextRequest) {
         totalTokens: sumNullable(calls.map((call) => call.totalTokens)),
         requestTokens: sumNullable(calls.map((call) => call.requestTokens)),
         responseTokens: sumNullable(calls.map((call) => call.responseTokens)),
+        estimatedCostUsd: roundUsd(sumNullable(calls.map((call) => call.estimatedCostUsd))),
         averageDurationMs,
       },
       byStatus,
       byProvider,
       byAgent,
+      costByProvider,
       failures,
       recentCalls: calls.slice(0, 20).map((call) => ({
         id: call.id,
@@ -108,6 +116,7 @@ export async function GET(request: NextRequest) {
         status: call.status,
         durationMs: call.durationMs,
         totalTokens: call.totalTokens,
+        estimatedCostUsd: call.estimatedCostUsd,
         error: call.error,
         createdAt: call.createdAt,
       })),

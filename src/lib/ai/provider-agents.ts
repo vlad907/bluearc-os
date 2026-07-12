@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 
 import { getCrmAgentPrompt } from "@/lib/ai/crm-agent-prompts";
+import { estimateCostUsd } from "@/lib/ai/pricing";
 import { prisma } from "@/lib/prisma";
 import { Agent2DraftInput, Agent2DraftOutput, Agent3VerifierOutput, DraftMode } from "@/lib/outreach/draft-agents";
 
@@ -147,6 +148,12 @@ async function logProviderCall(params: {
   metadata?: Prisma.JsonObject;
 }) {
   try {
+    const estimatedCostUsd = estimateCostUsd({
+      provider: params.provider,
+      model: params.model,
+      usage: params.usage,
+    });
+
     await prisma.aiProviderCall.create({
       data: {
         organizationId: params.organizationId,
@@ -161,6 +168,7 @@ async function logProviderCall(params: {
         requestTokens: params.usage?.requestTokens,
         responseTokens: params.usage?.responseTokens,
         totalTokens: params.usage?.totalTokens,
+        estimatedCostUsd,
         error: params.error?.slice(0, 500),
         metadata: params.metadata,
       },
@@ -236,7 +244,8 @@ async function getBudgetBlockReason(organizationId: string) {
   }
 
   const since = monthStart();
-  const [callCount, tokenAggregate] = await Promise.all([
+  const perMinuteSince = new Date(Date.now() - 60_000);
+  const [callCount, tokenAggregate, recentCallCount] = await Promise.all([
     prisma.aiProviderCall.count({
       where: {
         organizationId,
@@ -249,9 +258,21 @@ async function getBudgetBlockReason(organizationId: string) {
         organizationId,
         createdAt: { gte: since },
       },
-      _sum: { totalTokens: true },
+      _sum: { totalTokens: true, estimatedCostUsd: true },
+    }),
+    prisma.aiProviderCall.count({
+      where: {
+        organizationId,
+        createdAt: { gte: perMinuteSince },
+        status: { in: ["success", "failed"] },
+      },
     }),
   ]);
+
+  // Rate limit first: it is the tightest, most protective guardrail.
+  if (budget.perMinuteCallLimit !== null && recentCallCount >= budget.perMinuteCallLimit) {
+    return `AI rate limit reached (${recentCallCount}/${budget.perMinuteCallLimit} calls in the last minute).`;
+  }
 
   if (budget.monthlyCallLimit !== null && callCount >= budget.monthlyCallLimit) {
     return `Monthly AI call budget reached (${callCount}/${budget.monthlyCallLimit}).`;
@@ -260,6 +281,11 @@ async function getBudgetBlockReason(organizationId: string) {
   const totalTokens = tokenAggregate._sum.totalTokens ?? 0;
   if (budget.monthlyTokenLimit !== null && totalTokens >= budget.monthlyTokenLimit) {
     return `Monthly AI token budget reached (${totalTokens}/${budget.monthlyTokenLimit}).`;
+  }
+
+  const totalCostUsd = tokenAggregate._sum.estimatedCostUsd ?? 0;
+  if (budget.monthlyCostLimitUsd !== null && totalCostUsd >= budget.monthlyCostLimitUsd) {
+    return `Monthly AI cost budget reached ($${totalCostUsd.toFixed(2)}/$${budget.monthlyCostLimitUsd.toFixed(2)}).`;
   }
 
   return null;
