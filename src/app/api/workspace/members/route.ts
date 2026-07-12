@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createRawInviteToken, hashInviteToken, normalizeEmail } from "@/lib/auth/session";
 import { requireWorkspaceRole, resolveWorkspaceAccess, workspaceAccessError } from "@/lib/auth/workspace";
+import { sendWorkspaceInviteEmail } from "@/lib/email/workspace-invitations";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,20 @@ function inviteExpiryDate() {
   const date = new Date();
   date.setDate(date.getDate() + 14);
   return date;
+}
+
+function appOrigin(request: NextRequest) {
+  const explicitOrigin = process.env.APP_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim();
+
+  if (explicitOrigin) {
+    return explicitOrigin.replace(/\/+$/, "");
+  }
+
+  if (process.env.VERCEL_URL?.trim()) {
+    return `https://${process.env.VERCEL_URL.trim()}`;
+  }
+
+  return request.nextUrl.origin;
 }
 
 export async function GET(request: NextRequest) {
@@ -157,13 +172,37 @@ export async function POST(request: NextRequest) {
             email: true,
           },
         },
+        organization: {
+          select: {
+            name: true,
+          },
+        },
       },
     });
+    const inviteUrl = `${appOrigin(request)}/settings?invite=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(email)}`;
+    const inviteEmail = await sendWorkspaceInviteEmail({
+      to: email,
+      role,
+      inviteUrl,
+      workspaceName: invitation.organization.name,
+      invitedByName: invitation.invitedBy.name,
+      invitedByEmail: invitation.invitedBy.email,
+    });
+    const publicInvitation = {
+      id: invitation.id,
+      email: invitation.email,
+      role: invitation.role,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+      createdAt: invitation.createdAt,
+      invitedBy: invitation.invitedBy,
+    };
 
     return Response.json(
       {
-        invitation,
-        inviteUrl: `/settings?invite=${inviteToken}`,
+        invitation: publicInvitation,
+        inviteUrl,
+        inviteEmail,
       },
       { status: 202 },
     );

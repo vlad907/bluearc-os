@@ -194,6 +194,7 @@ All findings are architectural recommendations for future implementation. None b
 - Added role-aware mutation guard in workspace resolution: signed-in `owner`, `admin`, `manager`, and `member` roles can write; `viewer` can read but cannot resolve workspace access for mutating requests.
 - Added workspace member management APIs and Settings UI for listing members, adding existing signed-up users by email, changing roles, removing members, and protecting the final workspace owner.
 - Added pending workspace invitations for non-users, invitation revocation, Settings pending-invites display, and automatic invite acceptance when the invited email signs up.
+- Added optional outbound workspace invitation email delivery via Resend, with manual invite-link fallback when email is not configured.
 - Replaced compatibility workspace null checks across API routes with explicit auth responses, including `403` for read-only viewer mutation attempts.
 - Added AI budget controls with monthly call/token limits, Settings UI, API configuration, and provider pre-call enforcement that logs budget-blocked calls as skipped.
 
@@ -210,7 +211,7 @@ All findings are architectural recommendations for future implementation. None b
 - Run seed against a real PostgreSQL/Supabase database.
 - Smoke-test core CRUD pages against the migrated database.
 - Remove manual organization ID fallback before production use.
-- Add outbound invite emails for pending workspace invitations.
+- Configure `RESEND_API_KEY`, `INVITE_EMAIL_FROM`, and `APP_URL` in deployment for live outbound workspace invitations.
 
 ## Latest Database Workflow Update
 

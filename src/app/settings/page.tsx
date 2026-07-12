@@ -200,6 +200,7 @@ export default function SettingsPage() {
   const [memberRole, setMemberRole] = useState<WorkspaceMember["role"]>("member");
   const [memberStatus, setMemberStatus] = useState<string | null>(null);
   const [memberError, setMemberError] = useState<string | null>(null);
+  const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
   const [savingMember, setSavingMember] = useState(false);
   const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
   const [profileForm, setProfileForm] = useState({
@@ -555,6 +556,7 @@ export default function SettingsPage() {
     setSavingMember(true);
     setMemberStatus(null);
     setMemberError(null);
+    setLastInviteUrl(null);
 
     try {
       const response = await fetch("/api/workspace/members", {
@@ -573,6 +575,11 @@ export default function SettingsPage() {
         member?: WorkspaceMember;
         invitation?: WorkspaceInvitation;
         inviteUrl?: string;
+        inviteEmail?: {
+          sent: boolean;
+          provider: string;
+          message: string;
+        };
         error?: string;
       };
 
@@ -581,9 +588,13 @@ export default function SettingsPage() {
       }
 
       setMemberEmail("");
-      setMemberStatus(payload.member
-        ? `${payload.member.user.email} is now ${payload.member.role}.`
-        : `Invitation created for ${payload.invitation?.email}. They will be added automatically after signup.`);
+      if (payload.member) {
+        setMemberStatus(`${payload.member.user.email} is now ${payload.member.role}.`);
+      } else {
+        const delivery = payload.inviteEmail?.sent ? " Email sent." : ` ${payload.inviteEmail?.message ?? "Copy the invite URL and send it manually."}`;
+        setLastInviteUrl(payload.inviteUrl ?? null);
+        setMemberStatus(`Invitation created for ${payload.invitation?.email}.${delivery}`);
+      }
       await loadMembers();
       await refreshSession();
     } catch (error) {
@@ -1088,7 +1099,7 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 md:grid-cols-[1fr_160px_auto] gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Existing User Email
+                Teammate Email
                 </label>
                 <input
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
@@ -1162,7 +1173,7 @@ export default function SettingsPage() {
             <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
               <p className="text-sm font-medium text-gray-900 dark:text-white">Pending Invitations</p>
               <p className="text-xs text-gray-500 dark:text-gray-500">
-                Invited emails are auto-joined when they create an account with the same address.
+                New users receive an invite email when `RESEND_API_KEY` is configured; otherwise copy the returned invite URL from the API response.
               </p>
             </div>
             {invitations.length === 0 ? (
@@ -1196,6 +1207,16 @@ export default function SettingsPage() {
             )}
           </div>
           {memberStatus && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{memberStatus}</p>}
+          {lastInviteUrl && (
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
+              <p className="mb-2 font-medium">Manual invite link</p>
+              <input
+                className="w-full rounded border border-amber-300 bg-white px-2 py-1 text-xs text-amber-950 dark:border-amber-900 dark:bg-gray-950 dark:text-amber-200"
+                readOnly
+                value={lastInviteUrl}
+              />
+            </div>
+          )}
           {memberError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{memberError}</p>}
         </div>
 
