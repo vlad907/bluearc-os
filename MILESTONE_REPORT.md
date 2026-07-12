@@ -207,6 +207,7 @@ All findings are architectural recommendations for future implementation. None b
 - Improved Jobs workflow with company/contact/vendor/lead pickers, linked card context, and relation-safe job creation.
 - Improved Vendors workflow with linked account selection, company context, and direct email/phone/website actions.
 - Improved Tasks workflow with linked record selectors, polymorphic entity validation, and linked task context.
+- Improved Outreach log workflow with company/contact/lead/job selectors, relation-safe creation, and linked CRM context.
 
 ## Validation Results
 

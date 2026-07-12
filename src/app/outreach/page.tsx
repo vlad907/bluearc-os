@@ -20,6 +20,14 @@ type OutreachStatus =
 
 type Outreach = {
   id: string;
+  companyId: string | null;
+  contactId: string | null;
+  leadId: string | null;
+  jobId: string | null;
+  company: CompanyOption | null;
+  contact: ContactOption | null;
+  lead: LeadOption | null;
+  job: JobOption | null;
   channel: OutreachChannel;
   direction: OutreachDirection;
   status: OutreachStatus;
@@ -28,6 +36,31 @@ type Outreach = {
   scheduledAt: string | null;
   sentAt: string | null;
   createdAt: string;
+};
+
+type CompanyOption = {
+  id: string;
+  name: string;
+};
+
+type ContactOption = {
+  id: string;
+  firstName: string;
+  lastName: string | null;
+  email: string | null;
+  companyId: string | null;
+};
+
+type LeadOption = {
+  id: string;
+  title: string;
+  companyId: string | null;
+};
+
+type JobOption = {
+  id: string;
+  title: string;
+  companyId: string | null;
 };
 
 type EmailMessage = {
@@ -68,6 +101,10 @@ type GmailConnection = {
 };
 
 type OutreachForm = {
+  companyId: string;
+  contactId: string;
+  leadId: string;
+  jobId: string;
   channel: OutreachChannel;
   direction: OutreachDirection;
   status: OutreachStatus;
@@ -77,12 +114,52 @@ type OutreachForm = {
 };
 
 const initialForm: OutreachForm = {
+  companyId: "",
+  contactId: "",
+  leadId: "",
+  jobId: "",
   channel: "email",
   direction: "outbound",
   status: "draft",
   subject: "",
   body: "",
   scheduledAt: "",
+};
+
+type OutreachResponse = {
+  outreach?: Outreach[];
+  error?: string;
+  errors?: string[];
+};
+
+type CreateOutreachResponse = {
+  outreach?: Outreach;
+  error?: string;
+  errors?: string[];
+};
+
+type CompaniesResponse = {
+  companies?: CompanyOption[];
+  error?: string;
+  errors?: string[];
+};
+
+type ContactsResponse = {
+  contacts?: ContactOption[];
+  error?: string;
+  errors?: string[];
+};
+
+type LeadsResponse = {
+  leads?: LeadOption[];
+  error?: string;
+  errors?: string[];
+};
+
+type JobsResponse = {
+  jobs?: JobOption[];
+  error?: string;
+  errors?: string[];
 };
 
 const initialMailboxForm = {
@@ -158,6 +235,11 @@ function contactLabel(contact: EmailThread["contact"]) {
   return contact.email ? `${name || "Contact"} <${contact.email}>` : name || "Contact";
 }
 
+function contactOptionLabel(contact: ContactOption) {
+  const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
+  return contact.email ? `${name || "Contact"} · ${contact.email}` : name || "Contact";
+}
+
 function threadLinkLabel(thread: EmailThread) {
   const company = thread.company?.name ?? null;
   const contact = contactLabel(thread.contact);
@@ -173,6 +255,10 @@ export default function OutreachPage() {
   const { organizationId, setOrganizationId } = useOrganization();
   const [activeTab, setActiveTab] = useState<"log" | "mailbox">("mailbox");
   const [outreach, setOutreach] = useState<Outreach[]>([]);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [contacts, setContacts] = useState<ContactOption[]>([]);
+  const [leads, setLeads] = useState<LeadOption[]>([]);
+  const [jobs, setJobs] = useState<JobOption[]>([]);
   const [threads, setThreads] = useState<EmailThread[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [mailboxSearch, setMailboxSearch] = useState("");
@@ -207,17 +293,13 @@ export default function OutreachPage() {
         headers: { "x-organization-id": organizationId },
         signal,
       });
-      const payload = (await response.json()) as unknown;
+      const payload = (await response.json()) as OutreachResponse;
 
       if (!response.ok) {
         throw new Error(getErrorMessage(payload, "Failed to load outreach"));
       }
 
-      setOutreach(
-        payload && typeof payload === "object" && "outreach" in payload && Array.isArray(payload.outreach)
-          ? payload.outreach
-          : [],
-      );
+      setOutreach(payload.outreach ?? []);
     } catch (loadError) {
       if (loadError instanceof DOMException && loadError.name === "AbortError") {
         return;
@@ -227,6 +309,54 @@ export default function OutreachPage() {
       setOutreach([]);
     } finally {
       setLoading(false);
+    }
+  }, [organizationId]);
+
+  const loadRelationshipOptions = useCallback(async (signal?: AbortSignal) => {
+    if (!organizationId) {
+      setCompanies([]);
+      setContacts([]);
+      setLeads([]);
+      setJobs([]);
+      return;
+    }
+
+    try {
+      const [companiesResponse, contactsResponse, leadsResponse, jobsResponse] = await Promise.all([
+        fetch("/api/companies", { headers: { "x-organization-id": organizationId }, signal }),
+        fetch("/api/contacts", { headers: { "x-organization-id": organizationId }, signal }),
+        fetch("/api/leads", { headers: { "x-organization-id": organizationId }, signal }),
+        fetch("/api/jobs", { headers: { "x-organization-id": organizationId }, signal }),
+      ]);
+
+      const companiesPayload = (await companiesResponse.json()) as CompaniesResponse;
+      const contactsPayload = (await contactsResponse.json()) as ContactsResponse;
+      const leadsPayload = (await leadsResponse.json()) as LeadsResponse;
+      const jobsPayload = (await jobsResponse.json()) as JobsResponse;
+
+      const responses = [
+        [companiesResponse, companiesPayload, "Failed to load companies"],
+        [contactsResponse, contactsPayload, "Failed to load contacts"],
+        [leadsResponse, leadsPayload, "Failed to load leads"],
+        [jobsResponse, jobsPayload, "Failed to load jobs"],
+      ] as const;
+
+      for (const [response, payload, message] of responses) {
+        if (!response.ok) {
+          throw new Error(getErrorMessage(payload, message));
+        }
+      }
+
+      setCompanies(companiesPayload.companies ?? []);
+      setContacts(contactsPayload.contacts ?? []);
+      setLeads(leadsPayload.leads ?? []);
+      setJobs(jobsPayload.jobs ?? []);
+    } catch (loadError) {
+      if (loadError instanceof DOMException && loadError.name === "AbortError") {
+        return;
+      }
+
+      setError(loadError instanceof Error ? loadError.message : "Failed to load outreach options");
     }
   }, [organizationId]);
 
@@ -318,6 +448,7 @@ export default function OutreachPage() {
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       void loadOutreach(controller.signal);
+      void loadRelationshipOptions(controller.signal);
       void loadMailbox(controller.signal);
       void loadGmailStatus(controller.signal);
     }, 0);
@@ -326,7 +457,7 @@ export default function OutreachPage() {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [loadGmailStatus, loadMailbox, loadOutreach, organizationId]);
+  }, [loadGmailStatus, loadMailbox, loadOutreach, loadRelationshipOptions, organizationId]);
 
   const selectedThread = useMemo(
     () => threads.find((thread) => thread.id === selectedThreadId) ?? threads[0] ?? null,
@@ -337,6 +468,9 @@ export default function OutreachPage() {
     typeof message.metadata?.gmailDraftId === "string" && !message.metadata.gmailDraftSentAt
   )) ?? false;
   const activeGmailConnection = gmailConnections.find((connection) => connection.status === "connected") ?? null;
+  const filteredContacts = contacts.filter((contact) => !form.companyId || contact.companyId === form.companyId);
+  const filteredLeads = leads.filter((lead) => !form.companyId || lead.companyId === form.companyId);
+  const filteredJobs = jobs.filter((job) => !form.companyId || job.companyId === form.companyId);
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -356,6 +490,10 @@ export default function OutreachPage() {
           "x-organization-id": organizationId,
         },
         body: JSON.stringify({
+          companyId: form.companyId || null,
+          contactId: form.contactId || null,
+          leadId: form.leadId || null,
+          jobId: form.jobId || null,
           channel: form.channel,
           direction: form.direction,
           status: form.status,
@@ -364,13 +502,13 @@ export default function OutreachPage() {
           scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : null,
         }),
       });
-      const payload = (await response.json()) as unknown;
+      const payload = (await response.json()) as CreateOutreachResponse;
 
       if (!response.ok) {
         throw new Error(getErrorMessage(payload, "Failed to create outreach"));
       }
 
-      if (payload && typeof payload === "object" && "outreach" in payload) {
+      if (payload.outreach) {
         setOutreach((current) => [payload.outreach as Outreach, ...current]);
       }
 
@@ -921,6 +1059,60 @@ export default function OutreachPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
           <select
             className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+            value={form.companyId}
+            onChange={(event) => setForm((current) => ({
+              ...current,
+              companyId: event.target.value,
+              contactId: "",
+              leadId: "",
+              jobId: "",
+            }))}
+          >
+            <option value="">No company</option>
+            {companies.map((company) => (
+              <option key={company.id} value={company.id}>
+                {company.name}
+              </option>
+            ))}
+          </select>
+          <select
+            className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+            value={form.contactId}
+            onChange={(event) => setForm((current) => ({ ...current, contactId: event.target.value }))}
+          >
+            <option value="">No contact</option>
+            {filteredContacts.map((contact) => (
+              <option key={contact.id} value={contact.id}>
+                {contactOptionLabel(contact)}
+              </option>
+            ))}
+          </select>
+          <select
+            className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+            value={form.leadId}
+            onChange={(event) => setForm((current) => ({ ...current, leadId: event.target.value }))}
+          >
+            <option value="">No lead</option>
+            {filteredLeads.map((lead) => (
+              <option key={lead.id} value={lead.id}>
+                {lead.title}
+              </option>
+            ))}
+          </select>
+          <select
+            className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+            value={form.jobId}
+            onChange={(event) => setForm((current) => ({ ...current, jobId: event.target.value }))}
+          >
+            <option value="">No job</option>
+            {filteredJobs.map((job) => (
+              <option key={job.id} value={job.id}>
+                {job.title}
+              </option>
+            ))}
+          </select>
+          <select
+            className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
             value={form.channel}
             onChange={(event) => setForm((current) => ({ ...current, channel: event.target.value as OutreachChannel }))}
           >
@@ -958,7 +1150,7 @@ export default function OutreachPage() {
             <option value="cancelled">cancelled</option>
           </select>
           <input
-            className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+            className="md:col-span-2 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
             placeholder="Subject"
             value={form.subject}
             onChange={(event) => setForm((current) => ({ ...current, subject: event.target.value }))}
@@ -1005,6 +1197,7 @@ export default function OutreachPage() {
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Subject</th>
+                  <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">CRM Link</th>
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Channel</th>
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Direction</th>
                   <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Status</th>
@@ -1019,6 +1212,22 @@ export default function OutreachPage() {
                     <td className="px-5 py-4">
                       <div className="font-medium text-gray-900 dark:text-white">{item.subject || "Untitled outreach"}</div>
                       {item.body && <div className="mt-1 max-w-md truncate text-xs text-gray-500 dark:text-gray-500">{item.body}</div>}
+                    </td>
+                    <td className="px-5 py-4 text-gray-600 dark:text-gray-400">
+                      <div className="space-y-1">
+                        <div className="font-medium text-gray-900 dark:text-white">{item.company?.name ?? "Unlinked"}</div>
+                        {item.contact ? (
+                          <div className="text-xs text-gray-500 dark:text-gray-500">
+                            {contactOptionLabel(item.contact)}
+                          </div>
+                        ) : null}
+                        {item.lead ? (
+                          <div className="text-xs text-gray-500 dark:text-gray-500">Lead: {item.lead.title}</div>
+                        ) : null}
+                        {item.job ? (
+                          <div className="text-xs text-gray-500 dark:text-gray-500">Job: {item.job.title}</div>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-5 py-4">
                       <span className={classNames("text-xs font-medium px-2.5 py-1 rounded-full", channelStyles[item.channel])}>

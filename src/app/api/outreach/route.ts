@@ -182,6 +182,96 @@ function buildOutreachData(body: CreateOutreachBody) {
   return { data, errors };
 }
 
+async function validateOutreachRelations(
+  organizationId: string,
+  data: Record<string, unknown>,
+) {
+  const relationChecks = [
+    {
+      field: "companyId",
+      label: "Company",
+      find: (id: string) => prisma.company.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        select: { id: true },
+      }),
+    },
+    {
+      field: "contactId",
+      label: "Contact",
+      find: (id: string) => prisma.contact.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        select: { id: true },
+      }),
+    },
+    {
+      field: "leadId",
+      label: "Lead",
+      find: (id: string) => prisma.lead.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        select: { id: true },
+      }),
+    },
+    {
+      field: "jobId",
+      label: "Job",
+      find: (id: string) => prisma.job.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        select: { id: true },
+      }),
+    },
+  ];
+
+  for (const check of relationChecks) {
+    const value = data[check.field];
+    if (value === null || value === undefined || value === "") {
+      continue;
+    }
+
+    if (typeof value !== "string") {
+      return `${check.field} must be a string or null`;
+    }
+
+    const record = await check.find(value.trim());
+    if (!record) {
+      return `${check.label} not found`;
+    }
+  }
+
+  return null;
+}
+
+const outreachInclude = {
+  company: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+  contact: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      companyId: true,
+    },
+  },
+  lead: {
+    select: {
+      id: true,
+      title: true,
+      companyId: true,
+    },
+  },
+  job: {
+    select: {
+      id: true,
+      title: true,
+      companyId: true,
+    },
+  },
+};
+
 function handlePrismaError(error: unknown) {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2003") {
@@ -206,6 +296,7 @@ export async function GET(request: NextRequest) {
     const outreach = await prisma.outreach.findMany({
       where: { organizationId, deletedAt: null },
       orderBy: { createdAt: "desc" },
+      include: outreachInclude,
     });
 
     return Response.json({ outreach });
@@ -235,12 +326,19 @@ export async function POST(request: NextRequest) {
     return Response.json({ errors }, { status: 400 });
   }
 
+  const relationError = await validateOutreachRelations(organizationId, data);
+
+  if (relationError) {
+    return jsonError(relationError, 400);
+  }
+
   try {
     const outreach = await prisma.outreach.create({
       data: {
         organizationId,
         ...data,
       },
+      include: outreachInclude,
     });
 
     return Response.json({ outreach }, { status: 201 });
