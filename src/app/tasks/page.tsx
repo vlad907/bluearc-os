@@ -1,6 +1,6 @@
 "use client";
 
-import React, { FormEvent, useEffect, useState } from "react";
+import React, { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
 import { useOrganization } from "@/context/OrganizationContext";
 import { classNames, getPriorityColor } from "@/lib/utils";
@@ -8,23 +8,65 @@ import { highlightedRecordClass, useHighlightedRecordId } from "@/lib/navigation
 
 const taskStatuses = ["todo", "in_progress", "done", "cancelled"] as const;
 const taskPriorities = ["low", "medium", "high", "urgent"] as const;
+const taskEntityTypes = ["company", "contact", "lead", "job", "vendor"] as const;
 
 type TaskStatus = (typeof taskStatuses)[number];
 type TaskPriority = (typeof taskPriorities)[number];
+type TaskEntityType = (typeof taskEntityTypes)[number];
 
 type Task = {
   id: string;
   title: string;
   description: string | null;
+  entityType: TaskEntityType | null;
+  entityId: string | null;
+  entity: TaskEntityOption | null;
   status: TaskStatus;
   priority: TaskPriority;
   dueDate: string | null;
   assignedToId: string | null;
 };
 
+type TaskEntityOption = {
+  id: string;
+  type: TaskEntityType;
+  label: string;
+  subtitle: string | null;
+};
+
 type TasksResponse = {
   tasks?: Task[];
   task?: Task;
+  error?: string;
+  errors?: string[];
+};
+
+type CompaniesResponse = {
+  companies?: Array<{ id: string; name: string; industry: string | null }>;
+  error?: string;
+  errors?: string[];
+};
+
+type ContactsResponse = {
+  contacts?: Array<{ id: string; firstName: string; lastName: string | null; email: string | null }>;
+  error?: string;
+  errors?: string[];
+};
+
+type LeadsResponse = {
+  leads?: Array<{ id: string; title: string; stage: string }>;
+  error?: string;
+  errors?: string[];
+};
+
+type JobsResponse = {
+  jobs?: Array<{ id: string; title: string; status: string }>;
+  error?: string;
+  errors?: string[];
+};
+
+type VendorsResponse = {
+  vendors?: Array<{ id: string; name: string; category: string | null }>;
   error?: string;
   errors?: string[];
 };
@@ -53,10 +95,15 @@ function getStatusLabel(status: TaskStatus) {
   return status.replace("_", " ");
 }
 
+function getEntityTypeLabel(type: TaskEntityType) {
+  return type[0].toUpperCase() + type.slice(1);
+}
+
 export default function TasksPage() {
   const { organizationId, setOrganizationId } = useOrganization();
   const highlightedId = useHighlightedRecordId();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [entityOptions, setEntityOptions] = useState<TaskEntityOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -65,49 +112,122 @@ export default function TasksPage() {
   const [status, setStatus] = useState<TaskStatus>("todo");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [dueDate, setDueDate] = useState("");
+  const [entityType, setEntityType] = useState<TaskEntityType>("company");
+  const [entityId, setEntityId] = useState("");
 
-  useEffect(() => {
+  const filteredEntityOptions = useMemo(
+    () => entityOptions.filter((option) => option.type === entityType),
+    [entityOptions, entityType],
+  );
+
+  const fetchTasks = useCallback(async () => {
     if (!organizationId) {
+      setTasks([]);
       return;
     }
 
-    let cancelled = false;
+    setLoading(true);
+    setError(null);
 
-    async function fetchTasks() {
-      setLoading(true);
-      setError(null);
+    try {
+      const response = await fetch("/api/tasks", {
+        headers: { "x-organization-id": organizationId },
+      });
+      const data = (await response.json()) as TasksResponse;
 
-      try {
-        const response = await fetch("/api/tasks", {
-          headers: { "x-organization-id": organizationId },
-        });
-        const data = (await response.json()) as TasksResponse;
-
-        if (!response.ok) {
-          throw new Error(getApiError(data, "Failed to load tasks"));
-        }
-
-        if (!cancelled) {
-          setTasks(data.tasks ?? []);
-        }
-      } catch (fetchError) {
-        if (!cancelled) {
-          setError(fetchError instanceof Error ? fetchError.message : "Failed to load tasks");
-          setTasks([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+      if (!response.ok) {
+        throw new Error(getApiError(data, "Failed to load tasks"));
       }
+
+      setTasks(data.tasks ?? []);
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : "Failed to load tasks");
+      setTasks([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [organizationId]);
+
+  const fetchEntityOptions = useCallback(async () => {
+    if (!organizationId) {
+      setEntityOptions([]);
+      return;
     }
 
-    fetchTasks();
+    try {
+      const [companiesResponse, contactsResponse, leadsResponse, jobsResponse, vendorsResponse] = await Promise.all([
+        fetch("/api/companies", { headers: { "x-organization-id": organizationId } }),
+        fetch("/api/contacts", { headers: { "x-organization-id": organizationId } }),
+        fetch("/api/leads", { headers: { "x-organization-id": organizationId } }),
+        fetch("/api/jobs", { headers: { "x-organization-id": organizationId } }),
+        fetch("/api/vendors", { headers: { "x-organization-id": organizationId } }),
+      ]);
 
-    return () => {
-      cancelled = true;
-    };
+      const companiesPayload = (await companiesResponse.json()) as CompaniesResponse;
+      const contactsPayload = (await contactsResponse.json()) as ContactsResponse;
+      const leadsPayload = (await leadsResponse.json()) as LeadsResponse;
+      const jobsPayload = (await jobsResponse.json()) as JobsResponse;
+      const vendorsPayload = (await vendorsResponse.json()) as VendorsResponse;
+
+      const responses = [
+        [companiesResponse, companiesPayload, "Failed to load companies"],
+        [contactsResponse, contactsPayload, "Failed to load contacts"],
+        [leadsResponse, leadsPayload, "Failed to load leads"],
+        [jobsResponse, jobsPayload, "Failed to load jobs"],
+        [vendorsResponse, vendorsPayload, "Failed to load vendors"],
+      ] as const;
+
+      for (const [response, payload, message] of responses) {
+        if (!response.ok) {
+          throw new Error(getApiError(payload, message));
+        }
+      }
+
+      setEntityOptions([
+        ...(companiesPayload.companies ?? []).map((company) => ({
+          id: company.id,
+          type: "company" as const,
+          label: company.name,
+          subtitle: company.industry,
+        })),
+        ...(contactsPayload.contacts ?? []).map((contact) => ({
+          id: contact.id,
+          type: "contact" as const,
+          label: [contact.firstName, contact.lastName].filter(Boolean).join(" "),
+          subtitle: contact.email,
+        })),
+        ...(leadsPayload.leads ?? []).map((lead) => ({
+          id: lead.id,
+          type: "lead" as const,
+          label: lead.title,
+          subtitle: lead.stage,
+        })),
+        ...(jobsPayload.jobs ?? []).map((job) => ({
+          id: job.id,
+          type: "job" as const,
+          label: job.title,
+          subtitle: job.status,
+        })),
+        ...(vendorsPayload.vendors ?? []).map((vendor) => ({
+          id: vendor.id,
+          type: "vendor" as const,
+          label: vendor.name,
+          subtitle: vendor.category,
+        })),
+      ]);
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : "Failed to load task link options");
+    }
   }, [organizationId]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void fetchTasks();
+      void fetchEntityOptions();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [fetchEntityOptions, fetchTasks]);
 
   function handleOrganizationIdChange(value: string) {
     const nextOrganizationId = value.trim();
@@ -115,6 +235,7 @@ export default function TasksPage() {
 
     if (!nextOrganizationId) {
       setTasks([]);
+      setEntityOptions([]);
       setError(null);
     }
   }
@@ -134,6 +255,11 @@ export default function TasksPage() {
       status,
       priority,
     };
+
+    if (entityId) {
+      payload.entityType = entityType;
+      payload.entityId = entityId;
+    }
 
     if (dueDate) {
       payload.dueDate = new Date(`${dueDate}T00:00:00`).toISOString();
@@ -159,6 +285,8 @@ export default function TasksPage() {
       setStatus("todo");
       setPriority("medium");
       setDueDate("");
+      setEntityType("company");
+      setEntityId("");
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Failed to create task");
     } finally {
@@ -213,7 +341,7 @@ export default function TasksPage() {
 
       <form
         onSubmit={handleCreateTask}
-        className="mb-6 grid gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 md:grid-cols-5"
+        className="mb-6 grid gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 md:grid-cols-7"
       >
         <input
           className="md:col-span-2 px-3 py-2 text-sm bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
@@ -222,6 +350,32 @@ export default function TasksPage() {
           placeholder="Task title"
           required
         />
+        <select
+          className="px-3 py-2 text-sm bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+          value={entityType}
+          onChange={(event) => {
+            setEntityType(event.target.value as TaskEntityType);
+            setEntityId("");
+          }}
+        >
+          {taskEntityTypes.map((type) => (
+            <option key={type} value={type}>
+              {getEntityTypeLabel(type)}
+            </option>
+          ))}
+        </select>
+        <select
+          className="px-3 py-2 text-sm bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+          value={entityId}
+          onChange={(event) => setEntityId(event.target.value)}
+        >
+          <option value="">No link</option>
+          {filteredEntityOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}{option.subtitle ? ` · ${option.subtitle}` : ""}
+            </option>
+          ))}
+        </select>
         <select
           className="px-3 py-2 text-sm bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
           value={status}
@@ -274,6 +428,7 @@ export default function TasksPage() {
               <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
                 <th className="w-12 px-5 py-3.5" />
                 <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Title</th>
+                <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Linked Record</th>
                 <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Due Date</th>
                 <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Status</th>
                 <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Priority</th>
@@ -283,21 +438,21 @@ export default function TasksPage() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {!organizationId && (
                 <tr>
-                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={6}>
+                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={7}>
                     Enter an organization ID to load tasks.
                   </td>
                 </tr>
               )}
               {organizationId && loading && (
                 <tr>
-                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={6}>
+                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={7}>
                     Loading tasks...
                   </td>
                 </tr>
               )}
               {organizationId && !loading && tasks.length === 0 && (
                 <tr>
-                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={6}>
+                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={7}>
                     No tasks yet.
                   </td>
                 </tr>
@@ -328,6 +483,21 @@ export default function TasksPage() {
                     </td>
                     <td className={`px-5 py-4 ${completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-white"}`}>
                       {task.title}
+                      {task.description ? (
+                        <div className="mt-1 text-xs text-gray-500 dark:text-gray-500">{task.description}</div>
+                      ) : null}
+                    </td>
+                    <td className="px-5 py-4 text-gray-600 dark:text-gray-400">
+                      {task.entity ? (
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-white">{task.entity.label}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-500">
+                            {getEntityTypeLabel(task.entity.type)}{task.entity.subtitle ? ` · ${task.entity.subtitle}` : ""}
+                          </div>
+                        </div>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="px-5 py-4 text-gray-600 dark:text-gray-400">{formatDate(task.dueDate)}</td>
                     <td className="px-5 py-4 text-gray-600 dark:text-gray-400">{getStatusLabel(task.status)}</td>
