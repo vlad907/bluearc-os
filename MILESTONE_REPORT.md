@@ -198,6 +198,7 @@ All findings are architectural recommendations for future implementation. None b
 - Added tokenized invite acceptance for signup and login so invited users join the intended workspace without creating a duplicate workspace.
 - Replaced compatibility workspace null checks across API routes with explicit auth responses, including `403` for read-only viewer mutation attempts.
 - Added AI budget controls with monthly call/token limits, Settings UI, API configuration, and provider pre-call enforcement that logs budget-blocked calls as skipped.
+- Added global workspace search across companies, contacts, leads, jobs, vendors, and tasks with a dedicated Search page and sidebar entry.
 
 ## Validation Results
 

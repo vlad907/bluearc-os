@@ -5,6 +5,7 @@ import {
 
 export const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: "LayoutDashboard", href: "/" },
+  { id: "search", label: "Search", icon: "Search", href: "/search" },
   { id: "companies", label: "Companies", icon: "Building2", href: "/companies" },
   { id: "contacts", label: "Contacts", icon: "Users", href: "/contacts" },
   { id: "leads", label: "Leads", icon: "TrendingUp", href: "/leads" },
