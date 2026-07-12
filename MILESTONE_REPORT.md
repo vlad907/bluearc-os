@@ -201,6 +201,7 @@ All findings are architectural recommendations for future implementation. None b
 - Added global workspace search across companies, contacts, leads, jobs, vendors, and tasks with a dedicated Search page and sidebar entry.
 - Added a persistent topbar command search with `⌘K` focus, quick results dropdown, and handoff into the full Search page.
 - Added typed search filters plus highlighted deep links from search results into the matching CRM list pages.
+- Added recent-record mode to Search so it acts as a workspace activity hub before a query is entered.
 
 ## Validation Results
 

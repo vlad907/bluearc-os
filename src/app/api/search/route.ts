@@ -25,6 +25,10 @@ function normalizedQuery(request: NextRequest) {
   return (request.nextUrl.searchParams.get("q") ?? "").trim().slice(0, MAX_QUERY_LENGTH);
 }
 
+function wantsRecentRecords(request: NextRequest) {
+  return request.nextUrl.searchParams.get("recent") === "1";
+}
+
 function requestedType(request: NextRequest): SearchType {
   const type = request.nextUrl.searchParams.get("type")?.trim();
   return searchTypes.includes(type as SearchType) ? type as SearchType : "all";
@@ -38,8 +42,8 @@ function recordHref(path: string, id: string) {
   return `${path}?highlight=${encodeURIComponent(id)}`;
 }
 
-function emptyResponse(query: string, type: SearchType) {
-  return Response.json({ query, type, results: [], counts: {} });
+function emptyResponse(query: string, type: SearchType, recent: boolean) {
+  return Response.json({ query, type, recent, results: [], counts: {} });
 }
 
 export async function GET(request: NextRequest) {
@@ -51,9 +55,10 @@ export async function GET(request: NextRequest) {
 
   const query = normalizedQuery(request);
   const type = requestedType(request);
+  const recent = wantsRecentRecords(request);
 
-  if (query.length < 2) {
-    return emptyResponse(query, type);
+  if (query.length < 2 && !recent) {
+    return emptyResponse(query, type, recent);
   }
 
   const { organizationId } = workspace;
@@ -62,12 +67,16 @@ export async function GET(request: NextRequest) {
       where: {
         organizationId,
         deletedAt: null,
-        OR: [
-          { name: { contains: query, mode: "insensitive" } },
-          { domain: { contains: query, mode: "insensitive" } },
-          { industry: { contains: query, mode: "insensitive" } },
-          { website: { contains: query, mode: "insensitive" } },
-        ],
+        ...(recent
+          ? {}
+          : {
+              OR: [
+                { name: { contains: query, mode: "insensitive" } },
+                { domain: { contains: query, mode: "insensitive" } },
+                { industry: { contains: query, mode: "insensitive" } },
+                { website: { contains: query, mode: "insensitive" } },
+              ],
+            }),
       },
       orderBy: { updatedAt: "desc" },
       take: MAX_PER_TYPE,
@@ -77,13 +86,17 @@ export async function GET(request: NextRequest) {
       where: {
         organizationId,
         deletedAt: null,
-        OR: [
-          { firstName: { contains: query, mode: "insensitive" } },
-          { lastName: { contains: query, mode: "insensitive" } },
-          { email: { contains: query, mode: "insensitive" } },
-          { title: { contains: query, mode: "insensitive" } },
-          { company: { name: { contains: query, mode: "insensitive" } } },
-        ],
+        ...(recent
+          ? {}
+          : {
+              OR: [
+                { firstName: { contains: query, mode: "insensitive" } },
+                { lastName: { contains: query, mode: "insensitive" } },
+                { email: { contains: query, mode: "insensitive" } },
+                { title: { contains: query, mode: "insensitive" } },
+                { company: { name: { contains: query, mode: "insensitive" } } },
+              ],
+            }),
       },
       orderBy: { updatedAt: "desc" },
       take: MAX_PER_TYPE,
@@ -102,12 +115,16 @@ export async function GET(request: NextRequest) {
       where: {
         organizationId,
         deletedAt: null,
-        OR: [
-          { title: { contains: query, mode: "insensitive" } },
-          { source: { contains: query, mode: "insensitive" } },
-          { company: { name: { contains: query, mode: "insensitive" } } },
-          { contact: { email: { contains: query, mode: "insensitive" } } },
-        ],
+        ...(recent
+          ? {}
+          : {
+              OR: [
+                { title: { contains: query, mode: "insensitive" } },
+                { source: { contains: query, mode: "insensitive" } },
+                { company: { name: { contains: query, mode: "insensitive" } } },
+                { contact: { email: { contains: query, mode: "insensitive" } } },
+              ],
+            }),
       },
       orderBy: { updatedAt: "desc" },
       take: MAX_PER_TYPE,
@@ -123,13 +140,17 @@ export async function GET(request: NextRequest) {
       where: {
         organizationId,
         deletedAt: null,
-        OR: [
-          { title: { contains: query, mode: "insensitive" } },
-          { description: { contains: query, mode: "insensitive" } },
-          { type: { contains: query, mode: "insensitive" } },
-          { company: { name: { contains: query, mode: "insensitive" } } },
-          { vendor: { name: { contains: query, mode: "insensitive" } } },
-        ],
+        ...(recent
+          ? {}
+          : {
+              OR: [
+                { title: { contains: query, mode: "insensitive" } },
+                { description: { contains: query, mode: "insensitive" } },
+                { type: { contains: query, mode: "insensitive" } },
+                { company: { name: { contains: query, mode: "insensitive" } } },
+                { vendor: { name: { contains: query, mode: "insensitive" } } },
+              ],
+            }),
       },
       orderBy: { updatedAt: "desc" },
       take: MAX_PER_TYPE,
@@ -146,13 +167,17 @@ export async function GET(request: NextRequest) {
       where: {
         organizationId,
         deletedAt: null,
-        OR: [
-          { name: { contains: query, mode: "insensitive" } },
-          { category: { contains: query, mode: "insensitive" } },
-          { contactName: { contains: query, mode: "insensitive" } },
-          { email: { contains: query, mode: "insensitive" } },
-          { company: { name: { contains: query, mode: "insensitive" } } },
-        ],
+        ...(recent
+          ? {}
+          : {
+              OR: [
+                { name: { contains: query, mode: "insensitive" } },
+                { category: { contains: query, mode: "insensitive" } },
+                { contactName: { contains: query, mode: "insensitive" } },
+                { email: { contains: query, mode: "insensitive" } },
+                { company: { name: { contains: query, mode: "insensitive" } } },
+              ],
+            }),
       },
       orderBy: { updatedAt: "desc" },
       take: MAX_PER_TYPE,
@@ -162,11 +187,15 @@ export async function GET(request: NextRequest) {
       where: {
         organizationId,
         deletedAt: null,
-        OR: [
-          { title: { contains: query, mode: "insensitive" } },
-          { description: { contains: query, mode: "insensitive" } },
-          { entityType: { contains: query, mode: "insensitive" } },
-        ],
+        ...(recent
+          ? {}
+          : {
+              OR: [
+                { title: { contains: query, mode: "insensitive" } },
+                { description: { contains: query, mode: "insensitive" } },
+                { entityType: { contains: query, mode: "insensitive" } },
+              ],
+            }),
       },
       orderBy: { updatedAt: "desc" },
       take: MAX_PER_TYPE,
@@ -234,6 +263,7 @@ export async function GET(request: NextRequest) {
   return Response.json({
     query,
     type,
+    recent,
     results,
     counts: {
       companies: companies.length,

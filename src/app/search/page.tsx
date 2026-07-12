@@ -20,6 +20,7 @@ type SearchResult = {
 type SearchPayload = {
   query?: string;
   type?: SearchType;
+  recent?: boolean;
   results?: SearchResult[];
   counts?: Record<string, number>;
   error?: string;
@@ -67,6 +68,7 @@ export default function SearchPage() {
   const [type, setType] = useState<SearchType>("all");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [showingRecent, setShowingRecent] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,9 +79,10 @@ export default function SearchPage() {
   );
 
   const runSearch = useCallback(async (signal?: AbortSignal) => {
-    if (!organizationId.trim() || trimmedQuery.length < 2) {
+    if (!organizationId.trim()) {
       setResults([]);
       setCounts({});
+      setShowingRecent(false);
       return;
     }
 
@@ -87,7 +90,12 @@ export default function SearchPage() {
     setError(null);
 
     try {
-      const params = new URLSearchParams({ q: trimmedQuery });
+      const params = new URLSearchParams();
+      if (trimmedQuery.length >= 2) {
+        params.set("q", trimmedQuery);
+      } else {
+        params.set("recent", "1");
+      }
       if (type !== "all") {
         params.set("type", type);
       }
@@ -103,6 +111,7 @@ export default function SearchPage() {
 
       setResults(payload.results ?? []);
       setCounts(payload.counts ?? {});
+      setShowingRecent(Boolean(payload.recent));
     } catch (searchError) {
       if (searchError instanceof DOMException && searchError.name === "AbortError") {
         return;
@@ -111,6 +120,7 @@ export default function SearchPage() {
       setError(searchError instanceof Error ? searchError.message : "Search failed");
       setResults([]);
       setCounts({});
+      setShowingRecent(false);
     } finally {
       setLoading(false);
     }
@@ -165,7 +175,7 @@ export default function SearchPage() {
           id="global-search"
           autoFocus
           className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-base text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-          placeholder="Try a company, contact email, job title, vendor, or task..."
+          placeholder="Type to search, or leave blank for recently updated records..."
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
@@ -190,9 +200,9 @@ export default function SearchPage() {
               {key}: {count}
             </span>
           ))}
-          {trimmedQuery.length >= 2 && !loading && (
+          {!loading && (
             <span className="rounded-full bg-indigo-50 px-2 py-1 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
-              {totalResults} total
+              {showingRecent ? `${totalResults} recent` : `${totalResults} total`}
             </span>
           )}
         </div>
@@ -207,13 +217,15 @@ export default function SearchPage() {
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
         <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
           <p className="text-sm font-medium text-gray-900 dark:text-white">
-            {loading ? "Searching..." : trimmedQuery.length < 2 ? "Enter at least 2 characters" : "Results"}
+            {loading ? "Loading..." : showingRecent ? "Recently Updated" : trimmedQuery.length < 2 ? "Workspace records" : "Results"}
           </p>
         </div>
         {results.length === 0 ? (
           <div className="p-8 text-sm text-gray-500 dark:text-gray-500">
-            {trimmedQuery.length < 2
-              ? "Search across the workspace without opening each CRM section."
+            {!organizationId.trim()
+              ? "Select or create a workspace to search records."
+              : showingRecent
+              ? "No recent records found yet."
               : loading
                 ? "Loading matches..."
                 : "No matching records found."}
