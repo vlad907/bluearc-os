@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
 import { useOrganization } from "@/context/OrganizationContext";
 import { classNames } from "@/lib/utils";
@@ -12,6 +12,14 @@ type JobPriority = "low" | "medium" | "high" | "urgent";
 type Job = {
   id: string;
   title: string;
+  companyId: string | null;
+  contactId: string | null;
+  vendorId: string | null;
+  leadId: string | null;
+  company: CompanyOption | null;
+  contact: ContactOption | null;
+  vendor: VendorOption | null;
+  lead: LeadOption | null;
   status: JobStatus;
   priority: JobPriority;
   type: string | null;
@@ -19,8 +27,36 @@ type Job = {
   estimatedValue: string | number | null;
 };
 
+type CompanyOption = {
+  id: string;
+  name: string;
+};
+
+type ContactOption = {
+  id: string;
+  firstName: string;
+  lastName: string | null;
+  email: string | null;
+  companyId: string | null;
+};
+
+type VendorOption = {
+  id: string;
+  name: string;
+};
+
+type LeadOption = {
+  id: string;
+  title: string;
+  companyId: string | null;
+};
+
 type JobForm = {
   title: string;
+  companyId: string;
+  contactId: string;
+  vendorId: string;
+  leadId: string;
   status: JobStatus;
   priority: JobPriority;
   type: string;
@@ -46,11 +82,46 @@ const priorityStyles: Record<JobPriority, string> = {
 
 const initialForm: JobForm = {
   title: "",
+  companyId: "",
+  contactId: "",
+  vendorId: "",
+  leadId: "",
   status: "open",
   priority: "medium",
   type: "",
   siteAddress: "",
   estimatedValue: "",
+};
+
+type JobsResponse = {
+  jobs?: Job[];
+  job?: Job;
+  error?: string;
+  errors?: string[];
+};
+
+type CompaniesResponse = {
+  companies?: CompanyOption[];
+  error?: string;
+  errors?: string[];
+};
+
+type ContactsResponse = {
+  contacts?: ContactOption[];
+  error?: string;
+  errors?: string[];
+};
+
+type VendorsResponse = {
+  vendors?: VendorOption[];
+  error?: string;
+  errors?: string[];
+};
+
+type LeadsResponse = {
+  leads?: LeadOption[];
+  error?: string;
+  errors?: string[];
 };
 
 function getErrorMessage(payload: unknown, fallback: string) {
@@ -85,57 +156,118 @@ function formatValue(value: Job["estimatedValue"]) {
   }).format(amount);
 }
 
+function getContactName(contact: ContactOption) {
+  return [contact.firstName, contact.lastName].filter(Boolean).join(" ");
+}
+
 export default function JobsPage() {
   const { organizationId, setOrganizationId } = useOrganization();
   const highlightedId = useHighlightedRecordId();
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [contacts, setContacts] = useState<ContactOption[]>([]);
+  const [vendors, setVendors] = useState<VendorOption[]>([]);
+  const [leads, setLeads] = useState<LeadOption[]>([]);
   const [form, setForm] = useState<JobForm>(initialForm);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadJobs = useCallback(async (signal?: AbortSignal) => {
     if (!organizationId) {
+      setJobs([]);
       return;
     }
 
-    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
 
-    async function loadJobs() {
-      setLoading(true);
-      setError(null);
+    try {
+      const response = await fetch("/api/jobs", {
+        headers: { "x-organization-id": organizationId },
+        signal,
+      });
+      const payload = (await response.json()) as JobsResponse;
 
-      try {
-        const response = await fetch("/api/jobs", {
-          headers: { "x-organization-id": organizationId },
-          signal: controller.signal,
-        });
-        const payload = (await response.json()) as unknown;
-
-        if (!response.ok) {
-          throw new Error(getErrorMessage(payload, "Failed to load jobs"));
-        }
-
-        setJobs(
-          payload && typeof payload === "object" && "jobs" in payload && Array.isArray(payload.jobs)
-            ? payload.jobs
-            : [],
-        );
-      } catch (loadError) {
-        if (loadError instanceof DOMException && loadError.name === "AbortError") {
-          return;
-        }
-
-        setError(loadError instanceof Error ? loadError.message : "Failed to load jobs");
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload, "Failed to load jobs"));
       }
+
+      setJobs(payload.jobs ?? []);
+    } catch (loadError) {
+      if (loadError instanceof DOMException && loadError.name === "AbortError") {
+        return;
+      }
+
+      setError(loadError instanceof Error ? loadError.message : "Failed to load jobs");
+    } finally {
+      setLoading(false);
+    }
+  }, [organizationId]);
+
+  const loadRelationshipOptions = useCallback(async (signal?: AbortSignal) => {
+    if (!organizationId) {
+      setCompanies([]);
+      setContacts([]);
+      setVendors([]);
+      setLeads([]);
+      return;
     }
 
-    void loadJobs();
+    try {
+      const [companiesResponse, contactsResponse, vendorsResponse, leadsResponse] = await Promise.all([
+        fetch("/api/companies", { headers: { "x-organization-id": organizationId }, signal }),
+        fetch("/api/contacts", { headers: { "x-organization-id": organizationId }, signal }),
+        fetch("/api/vendors", { headers: { "x-organization-id": organizationId }, signal }),
+        fetch("/api/leads", { headers: { "x-organization-id": organizationId }, signal }),
+      ]);
 
-    return () => controller.abort();
+      const companiesPayload = (await companiesResponse.json()) as CompaniesResponse;
+      const contactsPayload = (await contactsResponse.json()) as ContactsResponse;
+      const vendorsPayload = (await vendorsResponse.json()) as VendorsResponse;
+      const leadsPayload = (await leadsResponse.json()) as LeadsResponse;
+
+      if (!companiesResponse.ok) {
+        throw new Error(getErrorMessage(companiesPayload, "Failed to load companies"));
+      }
+
+      if (!contactsResponse.ok) {
+        throw new Error(getErrorMessage(contactsPayload, "Failed to load contacts"));
+      }
+
+      if (!vendorsResponse.ok) {
+        throw new Error(getErrorMessage(vendorsPayload, "Failed to load vendors"));
+      }
+
+      if (!leadsResponse.ok) {
+        throw new Error(getErrorMessage(leadsPayload, "Failed to load leads"));
+      }
+
+      setCompanies(companiesPayload.companies ?? []);
+      setContacts(contactsPayload.contacts ?? []);
+      setVendors(vendorsPayload.vendors ?? []);
+      setLeads(leadsPayload.leads ?? []);
+    } catch (loadError) {
+      if (loadError instanceof DOMException && loadError.name === "AbortError") {
+        return;
+      }
+
+      setError(loadError instanceof Error ? loadError.message : "Failed to load job options");
+    }
   }, [organizationId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      void loadJobs(controller.signal);
+      void loadRelationshipOptions(controller.signal);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [loadJobs, loadRelationshipOptions]);
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -158,6 +290,10 @@ export default function JobsPage() {
         },
         body: JSON.stringify({
           title: form.title.trim(),
+          companyId: form.companyId || null,
+          contactId: form.contactId || null,
+          vendorId: form.vendorId || null,
+          leadId: form.leadId || null,
           status: form.status,
           priority: form.priority,
           type: form.type.trim() || null,
@@ -165,13 +301,13 @@ export default function JobsPage() {
           estimatedValue,
         }),
       });
-      const payload = (await response.json()) as unknown;
+      const payload = (await response.json()) as JobsResponse;
 
       if (!response.ok) {
         throw new Error(getErrorMessage(payload, "Failed to create job"));
       }
 
-      if (payload && typeof payload === "object" && "job" in payload) {
+      if (payload.job) {
         setJobs((current) => [payload.job as Job, ...current]);
       }
 
@@ -212,6 +348,10 @@ export default function JobsPage() {
 
     if (!value.trim()) {
       setJobs([]);
+      setCompanies([]);
+      setContacts([]);
+      setVendors([]);
+      setLeads([]);
     }
   }
 
@@ -236,12 +376,63 @@ export default function JobsPage() {
       >
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
           <input
-            className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+            className="xl:col-span-2 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
             placeholder="Job title"
             value={form.title}
             onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
             required
           />
+          <select
+            className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+            value={form.companyId}
+            onChange={(event) => setForm((current) => ({
+              ...current,
+              companyId: event.target.value,
+              contactId: "",
+              leadId: "",
+            }))}
+          >
+            <option value="">No company</option>
+            {companies.map((company) => (
+              <option key={company.id} value={company.id}>{company.name}</option>
+            ))}
+          </select>
+          <select
+            className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+            value={form.contactId}
+            onChange={(event) => setForm((current) => ({ ...current, contactId: event.target.value }))}
+          >
+            <option value="">No contact</option>
+            {contacts
+              .filter((contact) => !form.companyId || contact.companyId === form.companyId)
+              .map((contact) => (
+                <option key={contact.id} value={contact.id}>
+                  {getContactName(contact)}{contact.email ? ` · ${contact.email}` : ""}
+                </option>
+              ))}
+          </select>
+          <select
+            className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+            value={form.vendorId}
+            onChange={(event) => setForm((current) => ({ ...current, vendorId: event.target.value }))}
+          >
+            <option value="">No vendor</option>
+            {vendors.map((vendor) => (
+              <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
+            ))}
+          </select>
+          <select
+            className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
+            value={form.leadId}
+            onChange={(event) => setForm((current) => ({ ...current, leadId: event.target.value }))}
+          >
+            <option value="">No lead</option>
+            {leads
+              .filter((lead) => !form.companyId || lead.companyId === form.companyId)
+              .map((lead) => (
+                <option key={lead.id} value={lead.id}>{lead.title}</option>
+              ))}
+          </select>
           <select
             className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
             value={form.status}
@@ -324,6 +515,31 @@ export default function JobsPage() {
               </span>
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-500 mb-3">{formatValue(job.estimatedValue)}</p>
+            <div className="mb-3 space-y-1 text-sm text-gray-600 dark:text-gray-400">
+              <div>
+                <span className="font-medium text-gray-900 dark:text-white">Account:</span>{" "}
+                {job.company?.name ?? "Unassigned"}
+              </div>
+              {job.contact ? (
+                <div>
+                  <span className="font-medium text-gray-900 dark:text-white">Contact:</span>{" "}
+                  {getContactName(job.contact)}
+                  {job.contact.email ? ` · ${job.contact.email}` : ""}
+                </div>
+              ) : null}
+              {job.vendor ? (
+                <div>
+                  <span className="font-medium text-gray-900 dark:text-white">Vendor:</span>{" "}
+                  {job.vendor.name}
+                </div>
+              ) : null}
+              {job.lead ? (
+                <div>
+                  <span className="font-medium text-gray-900 dark:text-white">Lead:</span>{" "}
+                  {job.lead.title}
+                </div>
+              ) : null}
+            </div>
             <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-500 mb-4">
               <span className="flex items-center gap-1">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

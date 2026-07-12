@@ -179,6 +179,60 @@ function buildJobData(body: CreateJobBody) {
   return { data, errors };
 }
 
+async function validateJobRelations(
+  organizationId: string,
+  data: Record<string, unknown>,
+) {
+  const relationChecks = [
+    {
+      field: "companyId",
+      label: "Company",
+      find: (id: string) => prisma.company.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        select: { id: true },
+      }),
+    },
+    {
+      field: "contactId",
+      label: "Contact",
+      find: (id: string) => prisma.contact.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        select: { id: true },
+      }),
+    },
+    {
+      field: "vendorId",
+      label: "Vendor",
+      find: (id: string) => prisma.vendor.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        select: { id: true },
+      }),
+    },
+    {
+      field: "leadId",
+      label: "Lead",
+      find: (id: string) => prisma.lead.findFirst({
+        where: { id, organizationId, deletedAt: null },
+        select: { id: true },
+      }),
+    },
+  ];
+
+  for (const check of relationChecks) {
+    const value = data[check.field];
+    if (typeof value !== "string" || !value.trim()) {
+      continue;
+    }
+
+    const record = await check.find(value.trim());
+    if (!record) {
+      return `${check.label} not found`;
+    }
+  }
+
+  return null;
+}
+
 function handlePrismaError(error: unknown) {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2003") {
@@ -203,6 +257,36 @@ export async function GET(request: NextRequest) {
     const jobs = await prisma.job.findMany({
       where: { organizationId, deletedAt: null },
       orderBy: { createdAt: "desc" },
+      include: {
+        company: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        contact: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            companyId: true,
+          },
+        },
+        vendor: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        lead: {
+          select: {
+            id: true,
+            title: true,
+            companyId: true,
+          },
+        },
+      },
     });
 
     return Response.json({ jobs });
@@ -238,12 +322,48 @@ export async function POST(request: NextRequest) {
     return Response.json({ errors }, { status: 400 });
   }
 
+  const relationError = await validateJobRelations(organizationId, data);
+
+  if (relationError) {
+    return jsonError(relationError, 400);
+  }
+
   try {
     const job = await prisma.job.create({
       data: {
         organizationId,
         title,
         ...data,
+      },
+      include: {
+        company: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        contact: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            companyId: true,
+          },
+        },
+        vendor: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        lead: {
+          select: {
+            id: true,
+            title: true,
+            companyId: true,
+          },
+        },
       },
     });
 
