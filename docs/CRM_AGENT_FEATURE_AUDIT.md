@@ -49,7 +49,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Multi-page website crawling beyond the manually submitted URL.
 - Background queueing for provider-backed Agent execution. Basic retry/logging/dashboarding/budget caps, a per-minute rate limit, and estimated per-call USD cost (with a monthly cost cap) are now present.
 - Send-as aliases for Gmail sending. Gmail OAuth connect/callback/disconnect/status, encrypted token storage, mailbox Gmail sync, and Gmail draft creation and send from mailbox threads are now implemented.
-- Automated AI classification and approve/reject reply actions over synced Gmail messages. Basic mailbox thread/message storage, Gmail sync, and suggested reply generation are now present.
+- A dedicated mailbox UI surface. Automated inbound classification during Gmail sync and manual intake, suggested reply generation, and a suggested-reply lifecycle (`suggestionStatus` pending → approved/rejected → drafted → sent, with `POST /api/mailbox/[id]/suggestion` approve/reject actions) are now present at the API level; only a mailbox page/nav entry is still missing.
 - Raw API key credential storage. The app now stores env-var references and status checks instead of raw secrets.
 - Workspace AI strategy generation from profile. Profile storage, selected target categories, pain points, CTA style, and guardrails are now present.
 - Background pipeline worker for imported → research → draft → verify → draft/send progression.

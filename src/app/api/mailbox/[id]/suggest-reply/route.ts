@@ -132,6 +132,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
         suggestedSubject: suggestion.subject,
         suggestedBody: suggestion.body,
         suggestedAt: new Date(),
+        suggestionStatus: "pending",
         metadata: {
           promptKey: "responseDraft",
           promptSource: getCrmAgentPrompt("responseDraft").sourceFile,

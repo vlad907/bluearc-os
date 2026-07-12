@@ -105,6 +105,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
     const updatedSourceMessage = await prisma.emailMessage.update({
       where: { id: sourceMessage.id },
       data: {
+        suggestionStatus: "sent",
         metadata: {
           ...metadata,
           gmailDraftSentAt: sentAt.toISOString(),

@@ -649,6 +649,7 @@ model EmailMessage {
   suggestedSubject  String?
   suggestedBody     String?
   suggestedAt       DateTime?
+  suggestionStatus  String?
   sentAt            DateTime?
   receivedAt        DateTime?
   metadata          Json?
@@ -664,6 +665,7 @@ model EmailMessage {
   @@index([threadId])
   @@index([direction])
   @@index([classification])
+  @@index([suggestionStatus])
   @@index([receivedAt])
   @@index([sentAt])
   @@map("email_messages")

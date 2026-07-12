@@ -100,6 +100,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
     const updatedMessage = await prisma.emailMessage.update({
       where: { id: latestInbound.id },
       data: {
+        suggestionStatus: "drafted",
         metadata: {
           ...(latestInbound.metadata && typeof latestInbound.metadata === "object" && !Array.isArray(latestInbound.metadata)
             ? latestInbound.metadata
