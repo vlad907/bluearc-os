@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from "react";
 
 const ORGANIZATION_STORAGE_KEY = "bluearc.organizationId";
 
@@ -35,19 +35,15 @@ type SessionPayload = {
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
 
-function getInitialOrganizationId() {
-  if (typeof window === "undefined") {
-    return "";
-  }
-
-  return window.localStorage.getItem(ORGANIZATION_STORAGE_KEY) ?? "";
-}
-
 export function OrganizationProvider({ children }: { children: ReactNode }) {
-  const [organizationId, setOrganizationIdState] = useState(getInitialOrganizationId);
+  // Start empty so the first client render matches the server (no localStorage
+  // on the server). The stored workspace is restored in an effect after mount,
+  // which avoids a hydration mismatch.
+  const [organizationId, setOrganizationIdState] = useState("");
   const [sessionLoaded, setSessionLoaded] = useState(false);
   const [user, setUser] = useState<SessionUser | null>(null);
   const [workspaces, setWorkspaces] = useState<SessionWorkspace[]>([]);
+  const persistReady = useRef(false);
 
   async function refreshSession() {
     try {
@@ -84,6 +80,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
+      // Restore the persisted workspace after mount (deferred, not during
+      // render), so the initial client render matches the server-rendered
+      // empty state and hydration doesn't mismatch.
+      const stored = window.localStorage.getItem(ORGANIZATION_STORAGE_KEY);
+      if (stored) {
+        setOrganizationIdState(stored);
+      }
+
       void refreshSession();
     }, 0);
 
@@ -91,6 +95,12 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Skip the first run so restoring from storage doesn't immediately clear it.
+    if (!persistReady.current) {
+      persistReady.current = true;
+      return;
+    }
+
     if (organizationId) {
       window.localStorage.setItem(ORGANIZATION_STORAGE_KEY, organizationId);
     } else {
