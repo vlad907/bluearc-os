@@ -2,11 +2,10 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
-import { requireWorkspaceRole } from "@/lib/auth/workspace";
+import { resolveWorkspace } from "@/lib/auth/workspace";
 
 export const dynamic = "force-dynamic";
 
-const writeRoles = ["owner", "admin", "manager", "member"] as const;
 const actions = ["approve", "reject"] as const;
 
 type RouteParams = {
@@ -42,13 +41,13 @@ function handlePrismaError(error: unknown) {
 export async function POST(request: NextRequest, context: RouteParams) {
   const { id } = await context.params;
   const body = await readJsonBody(request);
-  const auth = await requireWorkspaceRole(request, body, writeRoles);
+  const workspace = await resolveWorkspace(request, body);
 
-  if ("error" in auth) {
-    return auth.error;
+  if ("error" in workspace) {
+    return workspace.error;
   }
 
-  const { organizationId } = auth;
+  const { organizationId } = workspace;
   const action = typeof body.action === "string" ? body.action.trim() : "";
 
   if (!actions.includes(action as (typeof actions)[number])) {

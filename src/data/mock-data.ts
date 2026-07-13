@@ -19,6 +19,7 @@ export const NAV_ITEMS: NavItem[] = [
 export const CRM_COMMAND_ITEMS: NavItem[] = [
   { id: "discovery", label: "Discovery", icon: "Search", href: "/discovery" },
   { id: "partners", label: "Partnerships", icon: "Users", href: "/partners" },
+  { id: "mailbox", label: "Mailbox", icon: "Mail", href: "/mailbox" },
   { id: "automation", label: "Automation", icon: "Zap", href: "/automation" },
 ];
 
