@@ -78,7 +78,7 @@ function formatDate(value: string | null) {
   return new Date(value).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-async function requestJson(path: string, organizationId: string, method: "GET" | "POST", body?: unknown) {
+async function requestJson(path: string, organizationId: string, method: "GET" | "POST" | "PATCH", body?: unknown) {
   const response = await fetch(path, {
     method,
     headers: {
@@ -165,6 +165,26 @@ export default function MailboxPage() {
       await loadThreads();
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Action failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function changeStatus(threadId: string, status: string) {
+    if (!organizationId) {
+      return;
+    }
+
+    setBusy("status");
+    setError(null);
+    setMessage(null);
+
+    try {
+      await requestJson(`/api/mailbox/${threadId}`, organizationId, "PATCH", { status });
+      setMessage(`Thread marked ${labelize(status)}.`);
+      await loadThreads();
+    } catch (statusError) {
+      setError(statusError instanceof Error ? statusError.message : "Failed to update status");
     } finally {
       setBusy(null);
     }
@@ -353,9 +373,22 @@ export default function MailboxPage() {
                 <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-800">
                   <div className="flex items-start justify-between gap-3">
                     <h2 className="font-semibold text-gray-900 dark:text-white">{selected.subject}</h2>
-                    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${statusStyles[selected.status] ?? statusStyles.open}`}>
-                      {labelize(selected.status)}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusStyles[selected.status] ?? statusStyles.open}`}>
+                        {labelize(selected.status)}
+                      </span>
+                      <select
+                        aria-label="Thread status"
+                        className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                        disabled={!!busy}
+                        value={selected.status}
+                        onChange={(event) => void changeStatus(selected.id, event.target.value)}
+                      >
+                        {STATUS_OPTIONS.map((option) => (
+                          <option key={option} value={option}>{labelize(option)}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
                     {selected.company?.name ?? "No linked company"}
