@@ -2,12 +2,10 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
-import { requireWorkspaceRole } from "@/lib/auth/workspace";
+import { resolveWorkspace } from "@/lib/auth/workspace";
 import { providerErrorMetadata, runProviderPartnerSearch } from "@/lib/ai/provider-agents";
 
 export const dynamic = "force-dynamic";
-
-const writeRoles = ["owner", "admin", "manager", "member"] as const;
 
 type SearchBody = {
   organizationId?: unknown;
@@ -73,13 +71,13 @@ function buildQueryFromProfile(
 
 export async function POST(request: NextRequest) {
   const body = await readJsonBody(request);
-  const auth = await requireWorkspaceRole(request, body, writeRoles);
+  const workspace = await resolveWorkspace(request, body);
 
-  if ("error" in auth) {
-    return auth.error;
+  if ("error" in workspace) {
+    return workspace.error;
   }
 
-  const { organizationId } = auth;
+  const { organizationId } = workspace;
   const explicitQuery = typeof body.query === "string" ? body.query.trim() : "";
 
   try {
