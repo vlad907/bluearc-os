@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { resolveWorkspace } from "@/lib/auth/workspace";
-import { extractEmails, extractPhones, fetchWebsiteText, inferPageType } from "@/lib/research/website";
+import { crawlWebsite } from "@/lib/research/website";
 
 export const dynamic = "force-dynamic";
 
@@ -102,9 +102,13 @@ export async function POST(request: NextRequest, context: RouteParams) {
       return jsonError("Lead not found", 404);
     }
 
-    const rawText = await fetchWebsiteText(url);
-    const extractedEmails = extractEmails(rawText);
-    const extractedPhones = extractPhones(rawText);
+    const crawledPages = await crawlWebsite(url, 5);
+    const extractedEmails = Array.from(new Set(crawledPages.flatMap((page) => page.extractedEmails)));
+    const extractedPhones = Array.from(new Set(crawledPages.flatMap((page) => page.extractedPhones)));
+    const rawText = crawledPages
+      .map((page) => `# ${page.pageType.toUpperCase()} — ${page.url}\n${page.rawText}`)
+      .join("\n\n")
+      .slice(0, 60000);
 
     const snapshot = await prisma.websiteSnapshot.create({
       data: {
@@ -119,19 +123,21 @@ export async function POST(request: NextRequest, context: RouteParams) {
           extractedEmails,
           extractedPhones,
           source: "manual_lead_research",
+          crawledPageCount: crawledPages.length,
+          crawledPageUrls: crawledPages.map((page) => page.url),
         },
         pages: {
-          create: {
+          create: crawledPages.map((page) => ({
             organizationId,
             leadId: lead.id,
             companyId: lead.companyId,
             contactId: lead.contactId,
-            url,
-            pageType: inferPageType(url),
-            rawText,
-            extractedEmails,
-            extractedPhones,
-          },
+            url: page.url,
+            pageType: page.pageType,
+            rawText: page.rawText,
+            extractedEmails: page.extractedEmails,
+            extractedPhones: page.extractedPhones,
+          })),
         },
       },
       include: { pages: true },
