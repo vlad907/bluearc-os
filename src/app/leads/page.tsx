@@ -123,6 +123,11 @@ function getLeadWebsiteUrl(lead: Lead) {
   return lead.company?.website ?? lead.company?.domain ?? "";
 }
 
+function getExtractedEmails(lead: Lead) {
+  const value = lead.metadata?.extractedEmails;
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
 function getContactName(contact: ContactOption) {
   return [contact.firstName, contact.lastName].filter(Boolean).join(" ");
 }
@@ -158,6 +163,7 @@ export default function LeadsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [researchingId, setResearchingId] = useState<string | null>(null);
   const [draftingId, setDraftingId] = useState<string | null>(null);
+  const [extractingId, setExtractingId] = useState<string | null>(null);
   const [researchUrls, setResearchUrls] = useState<Record<string, string>>({});
   const [researchMessage, setResearchMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -430,6 +436,44 @@ export default function LeadsPage() {
     }
   }
 
+  async function handleExtractContacts(lead: Lead) {
+    if (!organizationId) {
+      return;
+    }
+
+    setExtractingId(lead.id);
+    setResearchMessage(null);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/leads/${lead.id}/extract-contacts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({}),
+      });
+      const payload = (await response.json()) as { createdCount?: number; skippedCount?: number; error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to extract contacts");
+      }
+
+      const created = payload.createdCount ?? 0;
+      const skipped = payload.skippedCount ?? 0;
+      setResearchMessage(
+        `Created ${created} contact${created === 1 ? "" : "s"} from website research` +
+          (skipped ? ` (${skipped} already existed).` : "."),
+      );
+      await fetchRelationshipOptions();
+    } catch (extractError) {
+      setError(extractError instanceof Error ? extractError.message : "Failed to extract contacts");
+    } finally {
+      setExtractingId(null);
+    }
+  }
+
   return (
     <div className="p-6 lg:p-8">
       <PageHeader
@@ -653,6 +697,16 @@ export default function LeadsPage() {
                       >
                         {draftingId === lead.id ? "Drafting..." : "Agent 2/3 Draft"}
                       </button>
+                      {getExtractedEmails(lead).length > 0 && (
+                        <button
+                          className="whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                          disabled={extractingId === lead.id}
+                          onClick={() => handleExtractContacts(lead)}
+                          type="button"
+                        >
+                          {extractingId === lead.id ? "Extracting..." : `Extract ${getExtractedEmails(lead).length} Contact${getExtractedEmails(lead).length === 1 ? "" : "s"}`}
+                        </button>
+                      )}
                     </div>
                     {researchSummary?.confidence !== null && researchSummary?.confidence !== undefined && (
                       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
