@@ -4,7 +4,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { resolveWorkspace } from "@/lib/auth/workspace";
 import { runDeterministicPartnershipFit } from "@/lib/partners/partnership-fit";
-import { fetchWebsiteText } from "@/lib/research/website";
+import { crawlWebsite } from "@/lib/research/website";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +70,17 @@ export async function POST(request: NextRequest, context: RouteParams) {
       where: { organizationId },
     });
     const manualText = typeof body.websiteText === "string" ? body.websiteText.trim() : "";
-    const websiteText = manualText || (candidate.website ? await fetchWebsiteText(candidate.website) : "");
+    let websiteText = manualText;
+    let crawledPageCount = 0;
+
+    if (!websiteText && candidate.website) {
+      const crawledPages = await crawlWebsite(candidate.website, 5);
+      crawledPageCount = crawledPages.length;
+      websiteText = crawledPages
+        .map((page) => `# ${page.pageType.toUpperCase()} — ${page.url}\n${page.rawText}`)
+        .join("\n\n")
+        .slice(0, 60000);
+    }
 
     if (!websiteText) {
       return jsonError("Candidate needs a website or pasted website text before analysis", 400);
@@ -113,6 +123,7 @@ export async function POST(request: NextRequest, context: RouteParams) {
           ...asJsonObject(candidate.metadata),
           partnershipFitOutput: output,
           analyzedTextLength: websiteText.length,
+          crawledPageCount,
         },
       },
       include: {
