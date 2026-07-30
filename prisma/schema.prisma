@@ -193,6 +193,7 @@ enum AgentJobType {
   mailbox_suggest_reply
   gmail_sync_mailbox
   partner_search
+  gmail_send_draft
 }
 
 enum AgentJobStatus {

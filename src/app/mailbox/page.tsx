@@ -501,6 +501,23 @@ export default function MailboxPage() {
                     >
                       {busy === "send" ? "Sending..." : "Send Gmail"}
                     </button>
+                    <button
+                      className="rounded-lg border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-900/60 dark:bg-gray-900 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+                      disabled={!!busy || !latestInbound?.suggestedBody}
+                      onClick={() => void runAction(
+                        "queue-send",
+                        "/api/agent-jobs",
+                        {
+                          type: "gmail_send_draft",
+                          entityType: "email_thread",
+                          entityId: selected.id,
+                        },
+                        "Queued Gmail send. Process it from Automation when ready.",
+                      )}
+                      type="button"
+                    >
+                      {busy === "queue-send" ? "Queueing..." : "Queue Send"}
+                    </button>
                   </div>
                 </div>
               </div>

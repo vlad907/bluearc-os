@@ -38,7 +38,8 @@ function parseJobType(value: unknown): AgentJobType | null {
     value === "lead_research_website" ||
     value === "mailbox_suggest_reply" ||
     value === "gmail_sync_mailbox" ||
-    value === "partner_search"
+    value === "partner_search" ||
+    value === "gmail_send_draft"
     ? value
     : null;
 }
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
     return jsonError("Unsupported agent job type", 400);
   }
 
-  const workspace = type === "gmail_sync_mailbox"
+  const workspace = type === "gmail_sync_mailbox" || type === "gmail_send_draft"
     ? await requireWorkspaceRole(request, body, ["owner", "admin", "manager", "member"])
     : await resolveWorkspace(request, body);
 
@@ -105,6 +106,10 @@ export async function POST(request: NextRequest) {
 
   if (type === "partner_search" && entityType && entityType !== "workspace") {
     return jsonError("partner_search jobs require entityType=workspace when entityType is provided", 400);
+  }
+
+  if (type === "gmail_send_draft" && entityType !== "email_thread") {
+    return jsonError("gmail_send_draft jobs require entityType=email_thread", 400);
   }
 
   if (type !== "gmail_sync_mailbox" && type !== "partner_search" && !entityId) {
@@ -155,6 +160,23 @@ export async function POST(request: NextRequest) {
       payload = {
         query: typeof body.query === "string" ? body.query.trim() : "",
       } satisfies Prisma.JsonObject;
+    } else if (type === "gmail_send_draft") {
+      if (!("userId" in workspace) || !workspace.userId) {
+        return jsonError("Sign in is required to queue Gmail send", 401);
+      }
+
+      const thread = await prisma.emailThread.findFirst({
+        where: { id: entityId, organizationId: workspace.organizationId, deletedAt: null },
+        select: { id: true },
+      });
+
+      if (!thread) {
+        return jsonError("Mailbox thread not found", 404);
+      }
+
+      payload = {
+        userId: workspace.userId,
+      } satisfies Prisma.JsonObject;
     } else if (type === "mailbox_suggest_reply") {
       const thread = await prisma.emailThread.findFirst({
         where: { id: entityId, organizationId: workspace.organizationId, deletedAt: null },
@@ -181,7 +203,7 @@ export async function POST(request: NextRequest) {
       return jsonError("lead_research_website jobs require a valid http(s) url", 400);
     }
 
-    if (type !== "gmail_sync_mailbox" && type !== "partner_search") {
+    if (type !== "gmail_sync_mailbox" && type !== "partner_search" && type !== "gmail_send_draft") {
       payload = {
         mode: parseMode(body.mode),
         ...(url ? { url } : {}),

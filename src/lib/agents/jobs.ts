@@ -3,6 +3,7 @@ import { AgentJob, AgentJobStatus, Prisma } from "@prisma/client";
 import { generateLeadEmailDraft } from "@/lib/agents/lead-draft";
 import { ingestAndResearchLeadWebsite, parseWebsiteUrl } from "@/lib/agents/lead-research";
 import { generateMailboxSuggestedReply } from "@/lib/agents/mailbox-reply";
+import { sendMailboxGmailDraft } from "@/lib/gmail/send";
 import { syncGmailMailbox } from "@/lib/gmail/sync";
 import { searchAndPersistPartnerCandidates } from "@/lib/partners/search";
 import { prisma } from "@/lib/prisma";
@@ -94,6 +95,27 @@ export async function processAgentJob(job: AgentJob) {
       provider: result.provider,
       model: result.model,
       createdIds: result.created.map((candidate) => candidate.id),
+    } satisfies Prisma.JsonObject;
+  }
+
+  if (job.type === "gmail_send_draft") {
+    const userId = stringPayload(payload.userId);
+
+    if (!userId) {
+      throw new Error("gmail_send_draft job requires a userId payload");
+    }
+
+    const result = await sendMailboxGmailDraft({
+      organizationId: job.organizationId,
+      userId,
+      threadId: job.entityId,
+    });
+
+    return {
+      threadId: job.entityId,
+      draftId: result.draftId,
+      sentMessageId: result.sentMessageId,
+      messageId: result.message.id,
     } satisfies Prisma.JsonObject;
   }
 

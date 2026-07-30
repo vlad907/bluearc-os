@@ -233,6 +233,8 @@ All findings are architectural recommendations for future implementation. None b
 - Added queued Gmail mailbox sync: Mailbox can enqueue `gmail_sync_mailbox`, `/api/agent-jobs` validates the signed-in user's connected Gmail account, and Automation/worker processing can import Gmail messages in the background.
 - Extracted live partner search into a reusable service so inline search and queued processing share workspace-profile query generation, provider execution, duplicate filtering, candidate persistence, provider metadata, and provider error handling.
 - Added queued partner sourcing: Partnerships can enqueue `partner_search`, `/api/agent-jobs` stores the workspace-level search intent, and Automation/worker processing can source partner candidates through the same provider-backed web-search path.
+- Extracted Gmail draft sending into a reusable service so inline send and queued processing share connected-account selection, draft metadata checks, Gmail send execution, outbound message upsert, thread completion, and duplicate-send protection.
+- Added queued Gmail sending: Mailbox threads can enqueue `gmail_send_draft`, `/api/agent-jobs` validates signed-in Gmail ownership and mailbox thread access, and Automation/worker processing can send an already-created Gmail draft.
 
 ## Validation Results
 
@@ -265,6 +267,10 @@ All findings are architectural recommendations for future implementation. None b
 - `npx prisma validate` — pass after queued partner search job type
 - `npm run lint` — pass after queued partner search rollout
 - `npm run build` — pass after queued partner search rollout
+- `npx prisma generate` — pass after queued Gmail send job type
+- `npx prisma validate` — pass after queued Gmail send job type
+- `npm run lint` — pass after queued Gmail send rollout
+- `npm run build` — pass after queued Gmail send rollout
 
 ## Remaining Before Milestone 2 Completion
 
