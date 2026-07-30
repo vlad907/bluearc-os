@@ -3,6 +3,7 @@ import { AgentJob, AgentJobStatus, Prisma } from "@prisma/client";
 import { generateLeadEmailDraft } from "@/lib/agents/lead-draft";
 import { ingestAndResearchLeadWebsite, parseWebsiteUrl } from "@/lib/agents/lead-research";
 import { generateMailboxSuggestedReply } from "@/lib/agents/mailbox-reply";
+import { syncGmailMailbox } from "@/lib/gmail/sync";
 import { prisma } from "@/lib/prisma";
 import { DraftMode } from "@/lib/outreach/draft-agents";
 
@@ -12,6 +13,10 @@ function asJsonObject(value: Prisma.JsonValue | null | undefined) {
 
 function parseDraftMode(value: unknown): DraftMode {
   return value === "fallback" || value === "soft" || value === "partnership" ? value : "signal";
+}
+
+function stringPayload(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function serializeError(error: unknown) {
@@ -50,6 +55,28 @@ export async function processAgentJob(job: AgentJob) {
     return {
       threadId: result.threadId,
       messageId: result.messageId,
+    } satisfies Prisma.JsonObject;
+  }
+
+  if (job.type === "gmail_sync_mailbox") {
+    const userId = stringPayload(payload.userId);
+
+    if (!userId) {
+      throw new Error("gmail_sync_mailbox job requires a userId payload");
+    }
+
+    const result = await syncGmailMailbox({
+      organizationId: job.organizationId,
+      userId,
+      connectionId: job.entityId,
+      query: payload.query,
+      maxResults: payload.maxResults,
+    });
+
+    return {
+      connectionId: result.connection.id,
+      email: result.connection.email,
+      counts: result.counts,
     } satisfies Prisma.JsonObject;
   }
 

@@ -229,6 +229,8 @@ All findings are architectural recommendations for future implementation. None b
 - Added queued lead website research: Leads can enqueue website crawl + Agent 1 jobs, AgentJob now supports `lead_research_website`, and Automation/worker processing can execute research jobs before draft jobs.
 - Extracted mailbox suggested-reply generation into a reusable service so inline mailbox drafting and queued processing share the same prompt lineage, deterministic reply logic, thread status updates, and suggestion lifecycle writes.
 - Added queued mailbox reply drafting: Mailbox threads can enqueue `mailbox_suggest_reply` jobs, `/api/agent-jobs` validates `email_thread` ownership, and Automation/worker processing can generate pending suggested replies for later review.
+- Extracted Gmail mailbox sync into a reusable service so inline sync and queued processing share token refresh, Gmail fetch, classification, duplicate detection, link resolution, thread/message persistence, and connection error tracking.
+- Added queued Gmail mailbox sync: Mailbox can enqueue `gmail_sync_mailbox`, `/api/agent-jobs` validates the signed-in user's connected Gmail account, and Automation/worker processing can import Gmail messages in the background.
 
 ## Validation Results
 
@@ -253,6 +255,10 @@ All findings are architectural recommendations for future implementation. None b
 - `npx prisma validate` — pass after queued mailbox reply job type
 - `npm run lint` — pass after queued mailbox reply rollout
 - `npm run build` — pass after queued mailbox reply rollout
+- `npx prisma generate` — pass after queued Gmail sync job type
+- `npx prisma validate` — pass after queued Gmail sync job type
+- `npm run lint` — pass after queued Gmail sync rollout
+- `npm run build` — pass after queued Gmail sync rollout
 
 ## Remaining Before Milestone 2 Completion
 
