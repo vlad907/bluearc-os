@@ -4,6 +4,7 @@ import { generateLeadEmailDraft } from "@/lib/agents/lead-draft";
 import { ingestAndResearchLeadWebsite, parseWebsiteUrl } from "@/lib/agents/lead-research";
 import { generateMailboxSuggestedReply } from "@/lib/agents/mailbox-reply";
 import { syncGmailMailbox } from "@/lib/gmail/sync";
+import { searchAndPersistPartnerCandidates } from "@/lib/partners/search";
 import { prisma } from "@/lib/prisma";
 import { DraftMode } from "@/lib/outreach/draft-agents";
 
@@ -77,6 +78,22 @@ export async function processAgentJob(job: AgentJob) {
       connectionId: result.connection.id,
       email: result.connection.email,
       counts: result.counts,
+    } satisfies Prisma.JsonObject;
+  }
+
+  if (job.type === "partner_search") {
+    const result = await searchAndPersistPartnerCandidates({
+      organizationId: job.organizationId,
+      query: payload.query,
+    });
+
+    return {
+      query: result.query,
+      createdCount: result.createdCount,
+      skippedCount: result.skippedCount,
+      provider: result.provider,
+      model: result.model,
+      createdIds: result.created.map((candidate) => candidate.id),
     } satisfies Prisma.JsonObject;
   }
 

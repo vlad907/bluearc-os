@@ -37,7 +37,8 @@ function parseJobType(value: unknown): AgentJobType | null {
   return value === "lead_generate_draft" ||
     value === "lead_research_website" ||
     value === "mailbox_suggest_reply" ||
-    value === "gmail_sync_mailbox"
+    value === "gmail_sync_mailbox" ||
+    value === "partner_search"
     ? value
     : null;
 }
@@ -102,7 +103,11 @@ export async function POST(request: NextRequest) {
     return jsonError("gmail_sync_mailbox jobs require entityType=gmail_connection when entityType is provided", 400);
   }
 
-  if (type !== "gmail_sync_mailbox" && !entityId) {
+  if (type === "partner_search" && entityType && entityType !== "workspace") {
+    return jsonError("partner_search jobs require entityType=workspace when entityType is provided", 400);
+  }
+
+  if (type !== "gmail_sync_mailbox" && type !== "partner_search" && !entityId) {
     return jsonError("entityId is required", 400);
   }
 
@@ -144,6 +149,12 @@ export async function POST(request: NextRequest) {
         query: gmailSyncQuery(body.query),
         maxResults: clampGmailSyncMaxResults(body.maxResults),
       } satisfies Prisma.JsonObject;
+    } else if (type === "partner_search") {
+      jobEntityType = "workspace";
+      jobEntityId = workspace.organizationId;
+      payload = {
+        query: typeof body.query === "string" ? body.query.trim() : "",
+      } satisfies Prisma.JsonObject;
     } else if (type === "mailbox_suggest_reply") {
       const thread = await prisma.emailThread.findFirst({
         where: { id: entityId, organizationId: workspace.organizationId, deletedAt: null },
@@ -170,7 +181,7 @@ export async function POST(request: NextRequest) {
       return jsonError("lead_research_website jobs require a valid http(s) url", 400);
     }
 
-    if (type !== "gmail_sync_mailbox") {
+    if (type !== "gmail_sync_mailbox" && type !== "partner_search") {
       payload = {
         mode: parseMode(body.mode),
         ...(url ? { url } : {}),
