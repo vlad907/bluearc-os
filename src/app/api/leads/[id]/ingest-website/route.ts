@@ -1,9 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
-import { prisma } from "@/lib/prisma";
 import { resolveWorkspace } from "@/lib/auth/workspace";
-import { crawlWebsite } from "@/lib/research/website";
+import { ingestLeadWebsite, parseWebsiteUrl } from "@/lib/agents/lead-research";
 
 export const dynamic = "force-dynamic";
 
@@ -28,36 +27,19 @@ async function readJsonBody(request: Request) {
   }
 }
 
-async function resolveOrganizationId(request: NextRequest, body?: IngestWebsiteBody) {
-  return resolveWorkspace(request, body);
-}
-
-function parseWebsiteUrl(value: unknown) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  try {
-    const url = new URL(value.trim());
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return null;
-    }
-
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
-function asJsonObject(value: Prisma.JsonValue | null) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
-}
-
-function handlePrismaError(error: unknown) {
-  if (error instanceof Prisma.PrismaClientKnownRequestError) {
-    if (error.code === "P2025") {
+function handleError(error: unknown) {
+  if (error instanceof Error) {
+    if (error.message === "Lead not found") {
       return jsonError("Lead not found", 404);
     }
+
+    if (error.message.startsWith("Website returned")) {
+      return jsonError(error.message, 502);
+    }
+  }
+
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+    return jsonError("Lead not found", 404);
   }
 
   console.error(error);
@@ -72,98 +54,27 @@ export async function POST(request: NextRequest, context: RouteParams) {
     return jsonError("Request body must be valid JSON", 400);
   }
 
-  const workspace = await resolveOrganizationId(request, body);
+  const workspace = await resolveWorkspace(request, body);
 
   if ("error" in workspace) {
     return workspace.error;
   }
 
-  const { organizationId } = workspace;
   const url = parseWebsiteUrl(body.url);
-
 
   if (!url) {
     return jsonError("url must be a valid http(s) URL", 400);
   }
 
   try {
-    const lead = await prisma.lead.findFirst({
-      where: { id, organizationId, deletedAt: null },
-      select: {
-        id: true,
-        organizationId: true,
-        companyId: true,
-        contactId: true,
-        metadata: true,
-      },
+    const result = await ingestLeadWebsite({
+      organizationId: workspace.organizationId,
+      leadId: id,
+      url,
     });
 
-    if (!lead) {
-      return jsonError("Lead not found", 404);
-    }
-
-    const crawledPages = await crawlWebsite(url, 5);
-    const extractedEmails = Array.from(new Set(crawledPages.flatMap((page) => page.extractedEmails)));
-    const extractedPhones = Array.from(new Set(crawledPages.flatMap((page) => page.extractedPhones)));
-    const rawText = crawledPages
-      .map((page) => `# ${page.pageType.toUpperCase()} — ${page.url}\n${page.rawText}`)
-      .join("\n\n")
-      .slice(0, 60000);
-
-    const snapshot = await prisma.websiteSnapshot.create({
-      data: {
-        organizationId,
-        leadId: lead.id,
-        companyId: lead.companyId,
-        contactId: lead.contactId,
-        url,
-        rawText,
-        textLength: rawText.length,
-        metadata: {
-          extractedEmails,
-          extractedPhones,
-          source: "manual_lead_research",
-          crawledPageCount: crawledPages.length,
-          crawledPageUrls: crawledPages.map((page) => page.url),
-        },
-        pages: {
-          create: crawledPages.map((page) => ({
-            organizationId,
-            leadId: lead.id,
-            companyId: lead.companyId,
-            contactId: lead.contactId,
-            url: page.url,
-            pageType: page.pageType,
-            rawText: page.rawText,
-            extractedEmails: page.extractedEmails,
-            extractedPhones: page.extractedPhones,
-          })),
-        },
-      },
-      include: { pages: true },
-    });
-
-    const leadMetadata = asJsonObject(lead.metadata);
-    const updatedLead = await prisma.lead.update({
-      where: { id: lead.id },
-      data: {
-        metadata: {
-          ...leadMetadata,
-          websiteUrl: url,
-          latestSnapshotId: snapshot.id,
-          latestWebsiteIngestedAt: snapshot.fetchedAt.toISOString(),
-          extractedEmails,
-          extractedPhones,
-        },
-      },
-    });
-
-    return Response.json({ snapshot, lead: updatedLead }, { status: 201 });
+    return Response.json(result, { status: 201 });
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("Website returned")) {
-      return jsonError(error.message, 502);
-    }
-
-    return handlePrismaError(error);
+    return handleError(error);
   }
 }

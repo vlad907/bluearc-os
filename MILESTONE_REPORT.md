@@ -225,6 +225,8 @@ All findings are architectural recommendations for future implementation. None b
 - Extracted lead Agent 2/3 draft generation into a reusable service so inline generation and queued processing share the same deterministic/provider-backed behavior.
 - Added queued lead draft generation: Leads can enqueue draft jobs, Automation shows recent AI jobs, and Automation can process the next queued job into a reviewable EmailDraft/Outreach record.
 - Hardened `/api/agent-jobs/process` for worker execution: signed-in users can still process one job manually, while cron/worker callers can authenticate with `AGENT_JOB_WORKER_SECRET`, pass `organizationId`, and process a bounded batch of up to 10 jobs.
+- Extracted lead website ingestion and Agent 1 research into reusable services so inline research and queued processing share the same crawl, provider, deterministic fallback, and persistence behavior.
+- Added queued lead website research: Leads can enqueue website crawl + Agent 1 jobs, AgentJob now supports `lead_research_website`, and Automation/worker processing can execute research jobs before draft jobs.
 
 ## Validation Results
 
@@ -241,6 +243,10 @@ All findings are architectural recommendations for future implementation. None b
 - `npm run build` — pass after AgentJob queue rollout
 - `npm run lint` — pass after worker-secret AgentJob processor
 - `npm run build` — pass after worker-secret AgentJob processor
+- `npx prisma generate` — pass after queued website research job type
+- `npx prisma validate` — pass after queued website research job type
+- `npm run lint` — pass after queued website research rollout
+- `npm run build` — pass after queued website research rollout
 
 ## Remaining Before Milestone 2 Completion
 

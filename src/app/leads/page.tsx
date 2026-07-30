@@ -163,6 +163,7 @@ export default function LeadsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [researchingId, setResearchingId] = useState<string | null>(null);
+  const [queueingResearchId, setQueueingResearchId] = useState<string | null>(null);
   const [draftingId, setDraftingId] = useState<string | null>(null);
   const [queueingDraftId, setQueueingDraftId] = useState<string | null>(null);
   const [extractingId, setExtractingId] = useState<string | null>(null);
@@ -391,6 +392,51 @@ export default function LeadsPage() {
       setError(researchError instanceof Error ? researchError.message : "Failed to run research");
     } finally {
       setResearchingId(null);
+    }
+  }
+
+  async function handleQueueResearch(lead: Lead) {
+    if (!organizationId) {
+      return;
+    }
+
+    const url = (researchUrls[lead.id] ?? getLeadWebsiteUrl(lead)).trim();
+
+    if (!url) {
+      setError("Enter a website URL before queueing research");
+      return;
+    }
+
+    setQueueingResearchId(lead.id);
+    setResearchMessage(null);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/agent-jobs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({
+          type: "lead_research_website",
+          entityType: "lead",
+          entityId: lead.id,
+          url,
+        }),
+      });
+      const payload = (await response.json()) as LeadsResponse;
+
+      if (!response.ok) {
+        throw new Error(getApiError(payload, "Failed to queue research job"));
+      }
+
+      setResearchUrls((currentUrls) => ({ ...currentUrls, [lead.id]: url }));
+      setResearchMessage("Website research queued. Process it from Automation when ready.");
+    } catch (queueError) {
+      setError(queueError instanceof Error ? queueError.message : "Failed to queue research job");
+    } finally {
+      setQueueingResearchId(null);
     }
   }
 
@@ -707,6 +753,14 @@ export default function LeadsPage() {
                         type="button"
                       >
                         {researchingId === lead.id ? "Running..." : "Ingest + Agent 1"}
+                      </button>
+                      <button
+                        className="whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                        disabled={queueingResearchId === lead.id}
+                        onClick={() => handleQueueResearch(lead)}
+                        type="button"
+                      >
+                        {queueingResearchId === lead.id ? "Queueing..." : "Queue Research"}
                       </button>
                       <button
                         className="whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"

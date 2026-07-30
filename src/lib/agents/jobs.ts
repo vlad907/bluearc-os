@@ -1,6 +1,7 @@
 import { AgentJob, AgentJobStatus, Prisma } from "@prisma/client";
 
 import { generateLeadEmailDraft } from "@/lib/agents/lead-draft";
+import { ingestAndResearchLeadWebsite, parseWebsiteUrl } from "@/lib/agents/lead-research";
 import { prisma } from "@/lib/prisma";
 import { DraftMode } from "@/lib/outreach/draft-agents";
 
@@ -17,11 +18,32 @@ function serializeError(error: unknown) {
 }
 
 export async function processAgentJob(job: AgentJob) {
+  const payload = asJsonObject(job.payload);
+
+  if (job.type === "lead_research_website") {
+    const url = parseWebsiteUrl(payload.url);
+
+    if (!url) {
+      throw new Error("lead_research_website job requires a valid url payload");
+    }
+
+    const result = await ingestAndResearchLeadWebsite({
+      organizationId: job.organizationId,
+      leadId: job.entityId,
+      url,
+    });
+
+    return {
+      leadId: job.entityId,
+      snapshotId: result.snapshot.id,
+      researchRunId: result.researchRun.id,
+    } satisfies Prisma.JsonObject;
+  }
+
   if (job.type !== "lead_generate_draft") {
     throw new Error(`Unsupported agent job type: ${job.type}`);
   }
 
-  const payload = asJsonObject(job.payload);
   const result = await generateLeadEmailDraft({
     organizationId: job.organizationId,
     leadId: job.entityId,

@@ -2,6 +2,7 @@ import { AgentJobType, Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { resolveWorkspace } from "@/lib/auth/workspace";
+import { parseWebsiteUrl } from "@/lib/agents/lead-research";
 import { prisma } from "@/lib/prisma";
 import { DraftMode } from "@/lib/outreach/draft-agents";
 
@@ -13,6 +14,7 @@ type AgentJobsBody = {
   entityType?: unknown;
   entityId?: unknown;
   mode?: unknown;
+  url?: unknown;
 };
 
 function jsonError(message: string, status: number) {
@@ -28,7 +30,7 @@ async function readJsonBody(request: Request) {
 }
 
 function parseJobType(value: unknown): AgentJobType | null {
-  return value === "lead_generate_draft" ? value : null;
+  return value === "lead_generate_draft" || value === "lead_research_website" ? value : null;
 }
 
 function parseMode(value: unknown): DraftMode {
@@ -76,8 +78,8 @@ export async function POST(request: NextRequest) {
     return jsonError("Unsupported agent job type", 400);
   }
 
-  if (type === "lead_generate_draft" && entityType !== "lead") {
-    return jsonError("lead_generate_draft jobs require entityType=lead", 400);
+  if ((type === "lead_generate_draft" || type === "lead_research_website") && entityType !== "lead") {
+    return jsonError(`${type} jobs require entityType=lead`, 400);
   }
 
   if (!entityId) {
@@ -85,15 +87,19 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    if (type === "lead_generate_draft") {
-      const lead = await prisma.lead.findFirst({
-        where: { id: entityId, organizationId: workspace.organizationId, deletedAt: null },
-        select: { id: true },
-      });
+    const lead = await prisma.lead.findFirst({
+      where: { id: entityId, organizationId: workspace.organizationId, deletedAt: null },
+      select: { id: true },
+    });
 
-      if (!lead) {
-        return jsonError("Lead not found", 404);
-      }
+    if (!lead) {
+      return jsonError("Lead not found", 404);
+    }
+
+    const url = type === "lead_research_website" ? parseWebsiteUrl(body.url) : null;
+
+    if (type === "lead_research_website" && !url) {
+      return jsonError("lead_research_website jobs require a valid http(s) url", 400);
     }
 
     const job = await prisma.agentJob.create({
@@ -104,6 +110,7 @@ export async function POST(request: NextRequest) {
         entityId,
         payload: {
           mode: parseMode(body.mode),
+          ...(url ? { url } : {}),
         } satisfies Prisma.JsonObject,
       },
     });
