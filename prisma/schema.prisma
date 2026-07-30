@@ -190,6 +190,7 @@ enum AiProviderCallStatus {
 enum AgentJobType {
   lead_research_website
   lead_generate_draft
+  mailbox_suggest_reply
 }
 
 enum AgentJobStatus {

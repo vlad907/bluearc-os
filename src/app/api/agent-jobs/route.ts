@@ -30,7 +30,7 @@ async function readJsonBody(request: Request) {
 }
 
 function parseJobType(value: unknown): AgentJobType | null {
-  return value === "lead_generate_draft" || value === "lead_research_website" ? value : null;
+  return value === "lead_generate_draft" || value === "lead_research_website" || value === "mailbox_suggest_reply" ? value : null;
 }
 
 function parseMode(value: unknown): DraftMode {
@@ -82,18 +82,33 @@ export async function POST(request: NextRequest) {
     return jsonError(`${type} jobs require entityType=lead`, 400);
   }
 
+  if (type === "mailbox_suggest_reply" && entityType !== "email_thread") {
+    return jsonError("mailbox_suggest_reply jobs require entityType=email_thread", 400);
+  }
+
   if (!entityId) {
     return jsonError("entityId is required", 400);
   }
 
   try {
-    const lead = await prisma.lead.findFirst({
-      where: { id: entityId, organizationId: workspace.organizationId, deletedAt: null },
-      select: { id: true },
-    });
+    if (type === "mailbox_suggest_reply") {
+      const thread = await prisma.emailThread.findFirst({
+        where: { id: entityId, organizationId: workspace.organizationId, deletedAt: null },
+        select: { id: true },
+      });
 
-    if (!lead) {
-      return jsonError("Lead not found", 404);
+      if (!thread) {
+        return jsonError("Mailbox thread not found", 404);
+      }
+    } else {
+      const lead = await prisma.lead.findFirst({
+        where: { id: entityId, organizationId: workspace.organizationId, deletedAt: null },
+        select: { id: true },
+      });
+
+      if (!lead) {
+        return jsonError("Lead not found", 404);
+      }
     }
 
     const url = type === "lead_research_website" ? parseWebsiteUrl(body.url) : null;

@@ -227,6 +227,8 @@ All findings are architectural recommendations for future implementation. None b
 - Hardened `/api/agent-jobs/process` for worker execution: signed-in users can still process one job manually, while cron/worker callers can authenticate with `AGENT_JOB_WORKER_SECRET`, pass `organizationId`, and process a bounded batch of up to 10 jobs.
 - Extracted lead website ingestion and Agent 1 research into reusable services so inline research and queued processing share the same crawl, provider, deterministic fallback, and persistence behavior.
 - Added queued lead website research: Leads can enqueue website crawl + Agent 1 jobs, AgentJob now supports `lead_research_website`, and Automation/worker processing can execute research jobs before draft jobs.
+- Extracted mailbox suggested-reply generation into a reusable service so inline mailbox drafting and queued processing share the same prompt lineage, deterministic reply logic, thread status updates, and suggestion lifecycle writes.
+- Added queued mailbox reply drafting: Mailbox threads can enqueue `mailbox_suggest_reply` jobs, `/api/agent-jobs` validates `email_thread` ownership, and Automation/worker processing can generate pending suggested replies for later review.
 
 ## Validation Results
 
@@ -247,6 +249,10 @@ All findings are architectural recommendations for future implementation. None b
 - `npx prisma validate` — pass after queued website research job type
 - `npm run lint` — pass after queued website research rollout
 - `npm run build` — pass after queued website research rollout
+- `npx prisma generate` — pass after queued mailbox reply job type
+- `npx prisma validate` — pass after queued mailbox reply job type
+- `npm run lint` — pass after queued mailbox reply rollout
+- `npm run build` — pass after queued mailbox reply rollout
 
 ## Remaining Before Milestone 2 Completion
 

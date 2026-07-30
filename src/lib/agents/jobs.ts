@@ -2,6 +2,7 @@ import { AgentJob, AgentJobStatus, Prisma } from "@prisma/client";
 
 import { generateLeadEmailDraft } from "@/lib/agents/lead-draft";
 import { ingestAndResearchLeadWebsite, parseWebsiteUrl } from "@/lib/agents/lead-research";
+import { generateMailboxSuggestedReply } from "@/lib/agents/mailbox-reply";
 import { prisma } from "@/lib/prisma";
 import { DraftMode } from "@/lib/outreach/draft-agents";
 
@@ -40,21 +41,33 @@ export async function processAgentJob(job: AgentJob) {
     } satisfies Prisma.JsonObject;
   }
 
-  if (job.type !== "lead_generate_draft") {
-    throw new Error(`Unsupported agent job type: ${job.type}`);
+  if (job.type === "mailbox_suggest_reply") {
+    const result = await generateMailboxSuggestedReply({
+      organizationId: job.organizationId,
+      threadId: job.entityId,
+    });
+
+    return {
+      threadId: result.threadId,
+      messageId: result.messageId,
+    } satisfies Prisma.JsonObject;
   }
 
-  const result = await generateLeadEmailDraft({
-    organizationId: job.organizationId,
-    leadId: job.entityId,
-    mode: parseDraftMode(payload.mode),
-  });
+  if (job.type === "lead_generate_draft") {
+    const result = await generateLeadEmailDraft({
+      organizationId: job.organizationId,
+      leadId: job.entityId,
+      mode: parseDraftMode(payload.mode),
+    });
 
-  return {
-    emailDraftId: result.emailDraft.id,
-    outreachId: result.outreach.id,
-    leadId: job.entityId,
-  } satisfies Prisma.JsonObject;
+    return {
+      emailDraftId: result.emailDraft.id,
+      outreachId: result.outreach.id,
+      leadId: job.entityId,
+    } satisfies Prisma.JsonObject;
+  }
+
+  throw new Error(`Unsupported agent job type: ${job.type}`);
 }
 
 export async function claimNextAgentJob(organizationId: string) {
