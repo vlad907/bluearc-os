@@ -66,6 +66,19 @@ type AiBudgetPayload = {
   error?: string;
 };
 
+type GeneratedStrategyPreview = {
+  core_positioning?: string;
+  ideal_customers?: string[];
+  priority_pain_points?: string[];
+  cta_recommendations?: string[];
+  generationMode?: string;
+  provider?: string;
+  model?: string;
+  generatedAt?: string;
+  fallbackReason?: string;
+  providerFallbackReason?: string;
+};
+
 type GmailConnection = {
   id: string;
   email: string;
@@ -181,6 +194,8 @@ export default function SettingsPage() {
   const [profileStatus, setProfileStatus] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [generatingStrategy, setGeneratingStrategy] = useState(false);
+  const [generatedStrategy, setGeneratedStrategy] = useState<GeneratedStrategyPreview | null>(null);
   const [credentials, setCredentials] = useState<IntegrationCredential[]>([]);
   const [credentialStatus, setCredentialStatus] = useState<string | null>(null);
   const [credentialError, setCredentialError] = useState<string | null>(null);
@@ -232,6 +247,22 @@ export default function SettingsPage() {
     guardrailNotes: "",
   });
 
+  const applyStrategyToForm = useCallback((strategy: {
+    selectedTargetCategories?: string[];
+    selectedPriorityPainPoints?: string[];
+    selectedCtaStyle?: string | null;
+    guardrails?: { notes?: string[] } | null;
+    generatedStrategy?: GeneratedStrategyPreview | null;
+  }) => {
+    setStrategyForm({
+      selectedTargetCategories: (strategy.selectedTargetCategories ?? []).join(", "),
+      selectedPriorityPainPoints: (strategy.selectedPriorityPainPoints ?? []).join(", "),
+      selectedCtaStyle: strategy.selectedCtaStyle ?? "",
+      guardrailNotes: (strategy.guardrails?.notes ?? []).join(", "),
+    });
+    setGeneratedStrategy(strategy.generatedStrategy ?? null);
+  }, []);
+
   const loadWorkspaceProfile = useCallback(async () => {
     if (!organizationId.trim()) {
       return;
@@ -264,6 +295,7 @@ export default function SettingsPage() {
           selectedPriorityPainPoints?: string[];
           selectedCtaStyle?: string | null;
           guardrails?: { notes?: string[] } | null;
+          generatedStrategy?: GeneratedStrategyPreview | null;
         } | null;
         error?: string;
       };
@@ -297,17 +329,12 @@ export default function SettingsPage() {
 
       const strategy = strategyPayload.strategy;
       if (strategy) {
-        setStrategyForm({
-          selectedTargetCategories: (strategy.selectedTargetCategories ?? []).join(", "),
-          selectedPriorityPainPoints: (strategy.selectedPriorityPainPoints ?? []).join(", "),
-          selectedCtaStyle: strategy.selectedCtaStyle ?? "",
-          guardrailNotes: (strategy.guardrails?.notes ?? []).join(", "),
-        });
+        applyStrategyToForm(strategy);
       }
     } catch (error) {
       setProfileError(error instanceof Error ? error.message : "Failed to load workspace profile");
     }
-  }, [organizationId]);
+  }, [applyStrategyToForm, organizationId]);
 
   const loadCredentials = useCallback(async () => {
     if (!organizationId.trim()) {
@@ -891,6 +918,81 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleGenerateStrategy() {
+    if (!organizationId.trim()) {
+      return;
+    }
+
+    setGeneratingStrategy(true);
+    setProfileStatus(null);
+    setProfileError(null);
+
+    try {
+      const profileResponse = await fetch("/api/workspace/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId.trim(),
+        },
+        body: JSON.stringify({
+          businessName: profileForm.businessName,
+          businessDescription: profileForm.businessDescription,
+          serviceArea: profileForm.serviceArea,
+          industriesServed: csvToList(profileForm.industriesServed),
+          serviceSpecialties: csvToList(profileForm.serviceSpecialties),
+          preferredTone: profileForm.preferredTone,
+          outreachStyle: profileForm.outreachStyle,
+          preferredCta: profileForm.preferredCta,
+          doNotMention: csvToList(profileForm.doNotMention),
+          senderName: profileForm.senderName,
+          senderTitle: profileForm.senderTitle,
+          senderPhone: profileForm.senderPhone,
+          senderEmail: profileForm.senderEmail,
+        }),
+      });
+      const profilePayload = await profileResponse.json() as { error?: string; errors?: string[] };
+
+      if (!profileResponse.ok) {
+        throw new Error(profilePayload.errors?.join(", ") ?? profilePayload.error ?? "Failed to save profile");
+      }
+
+      const strategyResponse = await fetch("/api/workspace/ai-strategy", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId.trim(),
+        },
+        body: JSON.stringify({}),
+      });
+      const strategyPayload = await strategyResponse.json() as {
+        strategy?: {
+          selectedTargetCategories?: string[];
+          selectedPriorityPainPoints?: string[];
+          selectedCtaStyle?: string | null;
+          guardrails?: { notes?: string[] } | null;
+          generatedStrategy?: GeneratedStrategyPreview | null;
+        };
+        providerUsed?: boolean;
+        error?: string;
+      };
+
+      if (!strategyResponse.ok || !strategyPayload.strategy) {
+        throw new Error(strategyPayload.error ?? "Failed to generate AI strategy");
+      }
+
+      applyStrategyToForm(strategyPayload.strategy);
+      setProfileStatus(
+        strategyPayload.providerUsed
+          ? "Generated AI strategy from the workspace profile."
+          : "Generated deterministic strategy from the workspace profile because no AI provider was available.",
+      );
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : "Failed to generate AI strategy");
+    } finally {
+      setGeneratingStrategy(false);
+    }
+  }
+
   async function handleSaveCredential(preset: CredentialPreset) {
     if (!organizationId.trim()) {
       return;
@@ -1397,7 +1499,22 @@ export default function SettingsPage() {
             />
           </div>
           <div className="mt-5 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-4">
-            <p className="text-sm font-medium text-gray-900 dark:text-white mb-3">AI Strategy Selection</p>
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">AI Strategy Selection</p>
+                <p className="text-xs text-gray-500 dark:text-gray-500">
+                  Generate from the saved profile, then edit the selected fields if needed.
+                </p>
+              </div>
+              <button
+                className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-950"
+                disabled={!organizationId.trim() || savingProfile || generatingStrategy}
+                onClick={handleGenerateStrategy}
+                type="button"
+              >
+                {generatingStrategy ? "Generating..." : "Generate From Profile"}
+              </button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -1452,14 +1569,61 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
+            {generatedStrategy && (
+              <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 text-sm dark:border-gray-800 dark:bg-gray-900">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-gray-900 dark:text-white">Generated Strategy Preview</span>
+                  {generatedStrategy.generationMode && (
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                      {generatedStrategy.generationMode}
+                    </span>
+                  )}
+                  {generatedStrategy.provider && (
+                    <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                      {generatedStrategy.provider}{generatedStrategy.model ? ` · ${generatedStrategy.model}` : ""}
+                    </span>
+                  )}
+                </div>
+                {generatedStrategy.core_positioning && (
+                  <p className="text-gray-700 dark:text-gray-300">{generatedStrategy.core_positioning}</p>
+                )}
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Targets</p>
+                    <p className="mt-1 text-gray-700 dark:text-gray-300">
+                      {(generatedStrategy.ideal_customers ?? []).slice(0, 4).join(", ") || "Not generated"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Pain Points</p>
+                    <p className="mt-1 text-gray-700 dark:text-gray-300">
+                      {(generatedStrategy.priority_pain_points ?? []).slice(0, 4).join(", ") || "Not generated"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">CTAs</p>
+                    <p className="mt-1 text-gray-700 dark:text-gray-300">
+                      {(generatedStrategy.cta_recommendations ?? []).slice(0, 4).join(", ") || "Not generated"}
+                    </p>
+                  </div>
+                </div>
+                {(generatedStrategy.fallbackReason || generatedStrategy.providerFallbackReason) && (
+                  <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
+                    {generatedStrategy.fallbackReason ?? generatedStrategy.providerFallbackReason}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
-          <button
-            className="mt-4 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={!organizationId.trim() || savingProfile}
-            type="submit"
-          >
-            {savingProfile ? "Saving..." : "Save Profile Context"}
-          </button>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!organizationId.trim() || savingProfile || generatingStrategy}
+              type="submit"
+            >
+              {savingProfile ? "Saving..." : "Save Profile Context"}
+            </button>
+          </div>
           {profileStatus && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{profileStatus}</p>}
           {profileError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{profileError}</p>}
         </form>

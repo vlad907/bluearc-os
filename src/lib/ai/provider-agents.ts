@@ -612,6 +612,33 @@ export async function runProviderAgent3(params: {
   };
 }
 
+export async function runProviderWorkspaceStrategy(
+  organizationId: string,
+  workspaceProfile: JsonObject,
+) {
+  const prompt = getCrmAgentPrompt("workspaceStrategy");
+  const result = await callConfiguredJsonAgent(
+    organizationId,
+    "workspace_strategy",
+    prompt.key,
+    prompt.prompt,
+    JSON.stringify({ workspaceProfile }, null, 2),
+  );
+
+  if (!result) {
+    return null;
+  }
+
+  return {
+    ...result.output,
+    promptKey: prompt.key,
+    promptSource: prompt.sourceFile,
+    generationMode: normalizedGenerationMode(result.provider),
+    provider: result.provider,
+    model: result.model,
+  };
+}
+
 export function providerErrorMetadata(error: unknown) {
   return {
     providerFallbackReason: error instanceof Error ? error.message : "Provider call failed",

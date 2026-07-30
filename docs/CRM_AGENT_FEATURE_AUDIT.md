@@ -41,22 +41,26 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Workspace invitations: adding a non-user creates a pending invitation, Settings shows/revokes pending invites, and signup by the invited email automatically joins the invited workspace.
 - Explicit workspace auth errors: workspace-scoped APIs now return concrete auth responses instead of collapsing unauthorized access to a missing organization ID; viewer mutation attempts return `403`.
 - AI budget controls: Settings can enforce monthly provider-call and token budgets; provider execution checks the current-month budget before calling local/OpenAI/Anthropic and logs budget blocks as skipped calls.
+- Standalone Mailbox page: CRM Command navigation now includes a mailbox surface with thread filters, linked CRM context, suggested-reply review, Gmail sync, Gmail draft/send actions, and thread status controls.
+- Website crawling: lead website research now follows discovered internal pages, stores multiple WebsitePage records, and exposes an extract-contacts action for discovered emails/phones.
+- Partner analysis crawling: partner candidate fit analysis now uses multi-page crawl context instead of relying only on one submitted page.
+- Workspace AI strategy generation: Settings can generate strategy from the stored workspace profile, persist the generated JSON, fill selected target/pain/CTA/guardrail fields, and fall back deterministically when no AI provider is available.
 
 ## Key Original Features Not Yet Fully Ported
 
 - Local business discovery via Google Places, geocoding, radius/category search.
 - Provider-backed partnership web search for OpenAI/local providers. Anthropic web-search-backed live partner search, manual partner candidate import, and deterministic candidate ranking now exist.
-- Multi-page website crawling beyond the manually submitted URL.
+- Broader queued website crawling beyond the current lead research and partner candidate multi-page crawl coverage.
 - Background queueing for provider-backed Agent execution. Basic retry/logging/dashboarding/budget caps, a per-minute rate limit, and estimated per-call USD cost (with a monthly cost cap) are now present.
 - Send-as aliases for Gmail sending. Gmail OAuth connect/callback/disconnect/status, encrypted token storage, mailbox Gmail sync, and Gmail draft creation and send from mailbox threads are now implemented.
-- A dedicated mailbox UI surface. Automated inbound classification during Gmail sync and manual intake, suggested reply generation, and a suggested-reply lifecycle (`suggestionStatus` pending → approved/rejected → drafted → sent, with `POST /api/mailbox/[id]/suggestion` approve/reject actions) are now present at the API level; only a mailbox page/nav entry is still missing.
+- Deeper mailbox automation. A dedicated mailbox UI surface now exists; remaining gaps are send-as aliases, richer automated classification over synced Gmail messages, and background handling for reply queues.
 - Raw API key credential storage. The app now stores env-var references and status checks instead of raw secrets.
-- Workspace AI strategy generation from profile. Profile storage, selected target categories, pain points, CTA style, and guardrails are now present.
+- Workspace strategy revision history and evals. Profile-backed generation now exists, but generated revisions are still stored as the current strategy JSON rather than versioned eval-ready records.
 - Background pipeline worker for imported → research → draft → verify → draft/send progression.
 - Automated partner search sourcing via non-Anthropic web search APIs and a background sourcing worker. Anthropic web-search-backed sourcing (`POST /api/partner-candidates/search`), partner candidate storage, fit score, contact emails, contact form URL, status transitions, and conversion to leads now exist.
 - Lead pipeline status compatibility: discovered/imported/researching/researched/drafting/draft_ready/needs_review/approved/sent/replied/converted/archived.
 - Role-specific permissions beyond read/write. Manual `x-organization-id` remains a development bridge and should be removed once every client path uses the signed-in workspace.
-- Outbound email delivery for pending workspace invitations.
+- Production verification for outbound invite email delivery and deliverability settings. The Resend send path exists with a manual invite-link fallback when email is not configured.
 
 ## Integration Direction
 
@@ -71,11 +75,11 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 
 ## Recommended Next Merge Passes
 
-1. Remove the manual workspace-ID fallback from production paths. (Outbound invite emails via Resend are now implemented.)
+1. Replace manual workspace-ID UI with signed-in workspace selection across client pages. The server fallback is already development-only.
 2. Add background queueing on top of `AiProviderCall`. (A per-minute rate limit, estimated per-call USD cost, and a monthly cost cap are now implemented.)
 3. Extend live partner web search to OpenAI/local providers. (Anthropic web-search-backed partner search is now implemented at `POST /api/partner-candidates/search`.)
 4. Add send-as aliases and automated AI classification over synced Gmail messages. (Gmail OAuth connect/callback, draft creation, send, and inbox sync are now implemented.)
-5. Harden Gmail token handling. (Encrypted access/refresh token storage via `GmailConnection` is now implemented.)
+5. Add versioned strategy revisions/evals so generated workspace strategy changes can be compared and regression-tested.
 
 ## Future Model Consistency Work
 

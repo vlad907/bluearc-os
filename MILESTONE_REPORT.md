@@ -212,13 +212,21 @@ All findings are architectural recommendations for future implementation. None b
 - Added AI cost and rate controls on top of `AiProviderCall`: estimated per-call USD cost from a model pricing table (`src/lib/ai/pricing.ts`), a per-minute call rate limit, a monthly cost cap, provider pre-call enforcement of both, and a Settings usage dashboard that surfaces estimated cost totals and per-provider spend.
 - Added a suggested-reply review lifecycle for the mailbox: a `suggestionStatus` field on `EmailMessage` (pending → approved/rejected → drafted → sent), a `POST /api/mailbox/[id]/suggestion` approve/reject endpoint (reject clears the draft and returns the thread to the reply queue), and lifecycle transitions wired through Gmail draft creation and send.
 - Added live partner web search via a configured Anthropic provider's web-search server tool (`POST /api/partner-candidates/search`): builds a query from the workspace profile/strategy or an explicit prompt, sources real vendor/subcontractor companies, de-duplicates against existing candidates, persists them as `PartnerCandidate` records, and logs the call through the AI cost/rate guardrails; Partners page gains a search box. Non-Anthropic providers skip honestly instead of fabricating companies.
+- Added a standalone Mailbox page under the CRM Command submenu with thread filters, linked CRM context, suggested-reply review, Gmail draft/send actions, Gmail sync, and thread status transitions.
+- Added mailbox thread status controls so inbox work can move through open, needs-reply, drafted, done, and archived states without leaving the mailbox.
+- Added multi-page lead website crawling by following discovered internal links from submitted lead websites and storing the crawled pages with the lead research snapshot.
+- Added a lead website contact extraction action that converts discovered emails/phones from website research into CRM contact records.
+- Added multi-page crawl context to partner candidate fit analysis so partnership scoring can use more than a single submitted page.
+- Added workspace AI strategy generation from the stored workspace profile: `POST /api/workspace/ai-strategy` now tries configured local/OpenAI/Anthropic providers using the preserved workspace-strategy prompt, falls back to deterministic profile-specific strategy when no provider is available or the provider fails, persists the generated JSON, and updates selected target, pain-point, CTA, and guardrail fields.
+- Added Settings UI controls to generate workspace strategy from the current profile, preview generated positioning/targets/pain points/CTAs, and still manually edit/save the selected strategy context.
 
 ## Validation Results
 
 - `npx prisma generate` — pass
 - `npx prisma validate` — pass
 - `npm run lint` — pass after core CRUD API expansion
-- `npm run build` — pass
+- `npm run lint` — pass after workspace AI strategy generation
+- `npm run build` — pass after workspace AI strategy generation
 
 ## Remaining Before Milestone 2 Completion
 
