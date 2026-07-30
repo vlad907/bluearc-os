@@ -187,6 +187,18 @@ enum AiProviderCallStatus {
   skipped
 }
 
+enum AgentJobType {
+  lead_generate_draft
+}
+
+enum AgentJobStatus {
+  queued
+  running
+  completed
+  failed
+  cancelled
+}
+
 enum OrganizationMemberRole {
   owner
   admin
@@ -233,6 +245,7 @@ model Organization {
   gmailConnections       GmailConnection[]
   aiProviderCalls        AiProviderCall[]
   aiUsageBudget          AiUsageBudget?
+  agentJobs              AgentJob[]
   members                OrganizationMember[]
   invitations            WorkspaceInvitation[]
 
@@ -814,6 +827,34 @@ model AiUsageBudget {
 
   @@index([organizationId])
   @@map("ai_usage_budgets")
+}
+
+model AgentJob {
+  id             String         @id @default(uuid())
+  organizationId String
+  type           AgentJobType
+  status         AgentJobStatus @default(queued)
+  entityType     String
+  entityId       String
+  payload        Json?
+  result         Json?
+  error          String?
+  attempts       Int            @default(0)
+  maxAttempts    Int            @default(2)
+  queuedAt       DateTime       @default(now())
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([type])
+  @@index([status])
+  @@index([entityType, entityId])
+  @@index([queuedAt])
+  @@map("agent_jobs")
 }
 
 model WorkspaceProfile {

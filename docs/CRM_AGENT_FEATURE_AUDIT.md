@@ -46,13 +46,14 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Partner analysis crawling: partner candidate fit analysis now uses multi-page crawl context instead of relying only on one submitted page.
 - Workspace AI strategy generation: Settings can generate strategy from the stored workspace profile, persist the generated JSON, fill selected target/pain/CTA/guardrail fields, and fall back deterministically when no AI provider is available.
 - Shared workspace selection: main CRM and CRM Command pages now use a membership-aware workspace selector instead of raw UUID entry when a user is signed in; raw ID entry remains only as a development fallback.
+- Agent job queue foundation: lead draft generation can now be queued as an AgentJob, listed in Automation, and processed through a reusable processor endpoint that shares the inline Agent 2/3 draft service.
 
 ## Key Original Features Not Yet Fully Ported
 
 - Local business discovery via Google Places, geocoding, radius/category search.
 - Provider-backed partnership web search for OpenAI/local providers. Anthropic web-search-backed live partner search, manual partner candidate import, and deterministic candidate ranking now exist.
 - Broader queued website crawling beyond the current lead research and partner candidate multi-page crawl coverage.
-- Background queueing for provider-backed Agent execution. Basic retry/logging/dashboarding/budget caps, a per-minute rate limit, and estimated per-call USD cost (with a monthly cost cap) are now present.
+- Full background worker coverage for provider-backed Agent execution. Durable AgentJob records and manual processing now exist for lead draft generation; remaining work is cron/worker execution and additional job types such as website research, partner search, Gmail sync, and mailbox reply drafting.
 - Send-as aliases for Gmail sending. Gmail OAuth connect/callback/disconnect/status, encrypted token storage, mailbox Gmail sync, and Gmail draft creation and send from mailbox threads are now implemented.
 - Deeper mailbox automation. A dedicated mailbox UI surface now exists; remaining gaps are send-as aliases, richer automated classification over synced Gmail messages, and background handling for reply queues.
 - Raw API key credential storage. The app now stores env-var references and status checks instead of raw secrets.
@@ -76,7 +77,7 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 
 ## Recommended Next Merge Passes
 
-1. Add background queueing on top of `AiProviderCall`. (A per-minute rate limit, estimated per-call USD cost, and a monthly cost cap are now implemented.)
+1. Add worker/cron execution for AgentJob and expand job types to website research, partner search, Gmail sync, and mailbox reply drafting.
 2. Extend live partner web search to OpenAI/local providers. (Anthropic web-search-backed partner search is now implemented at `POST /api/partner-candidates/search`.)
 3. Add send-as aliases and automated AI classification over synced Gmail messages. (Gmail OAuth connect/callback, draft creation, send, and inbox sync are now implemented.)
 4. Move remaining workspace scoping from explicit `x-organization-id` headers toward signed-in session/default workspace resolution once every route is covered by membership-aware UI.

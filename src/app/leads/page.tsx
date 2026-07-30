@@ -164,6 +164,7 @@ export default function LeadsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [researchingId, setResearchingId] = useState<string | null>(null);
   const [draftingId, setDraftingId] = useState<string | null>(null);
+  const [queueingDraftId, setQueueingDraftId] = useState<string | null>(null);
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [researchUrls, setResearchUrls] = useState<Record<string, string>>({});
   const [researchMessage, setResearchMessage] = useState<string | null>(null);
@@ -425,6 +426,43 @@ export default function LeadsPage() {
     }
   }
 
+  async function handleQueueDraft(lead: Lead) {
+    if (!organizationId) {
+      return;
+    }
+
+    setQueueingDraftId(lead.id);
+    setResearchMessage(null);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/agent-jobs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({
+          type: "lead_generate_draft",
+          entityType: "lead",
+          entityId: lead.id,
+          mode: getLeadResearchSummary(lead) ? "signal" : "soft",
+        }),
+      });
+      const payload = (await response.json()) as LeadsResponse;
+
+      if (!response.ok) {
+        throw new Error(getApiError(payload, "Failed to queue draft job"));
+      }
+
+      setResearchMessage("Draft generation queued. Process it from Automation when ready.");
+    } catch (queueError) {
+      setError(queueError instanceof Error ? queueError.message : "Failed to queue draft job");
+    } finally {
+      setQueueingDraftId(null);
+    }
+  }
+
   async function handleExtractContacts(lead: Lead) {
     if (!organizationId) {
       return;
@@ -677,6 +715,14 @@ export default function LeadsPage() {
                         type="button"
                       >
                         {draftingId === lead.id ? "Drafting..." : "Agent 2/3 Draft"}
+                      </button>
+                      <button
+                        className="whitespace-nowrap rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-950"
+                        disabled={queueingDraftId === lead.id}
+                        onClick={() => handleQueueDraft(lead)}
+                        type="button"
+                      >
+                        {queueingDraftId === lead.id ? "Queueing..." : "Queue Draft"}
                       </button>
                       {getExtractedEmails(lead).length > 0 && (
                         <button

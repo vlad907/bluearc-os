@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
 import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
@@ -49,6 +48,20 @@ type EmailDraft = {
   company: { id: string; name: string } | null;
 };
 
+type AgentJob = {
+  id: string;
+  type: "lead_generate_draft";
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  entityType: string;
+  entityId: string;
+  attempts: number;
+  maxAttempts: number;
+  error: string | null;
+  queuedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+};
+
 type QueueItem = {
   id: string;
   type: "task" | "outreach" | "lead" | "emailDraft";
@@ -63,6 +76,10 @@ type ApiPayload = {
   tasks?: Task[];
   outreach?: Outreach[];
   emailDrafts?: EmailDraft[];
+  jobs?: AgentJob[];
+  job?: AgentJob | null;
+  processed?: boolean;
+  retryQueued?: boolean;
   emailDraft?: EmailDraft;
   task?: Task;
   error?: string;
@@ -140,7 +157,9 @@ export default function AutomationPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [outreach, setOutreach] = useState<Outreach[]>([]);
   const [emailDrafts, setEmailDrafts] = useState<EmailDraft[]>([]);
+  const [agentJobs, setAgentJobs] = useState<AgentJob[]>([]);
   const [loading, setLoading] = useState(false);
+  const [processingJob, setProcessingJob] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -154,17 +173,19 @@ export default function AutomationPage() {
     setError(null);
 
     try {
-      const [leadPayload, taskPayload, outreachPayload, draftPayload] = await Promise.all([
+      const [leadPayload, taskPayload, outreachPayload, draftPayload, jobPayload] = await Promise.all([
         fetchJson("/api/leads", organizationId),
         fetchJson("/api/tasks", organizationId),
         fetchJson("/api/outreach", organizationId),
         fetchJson("/api/email-drafts", organizationId),
+        fetchJson("/api/agent-jobs", organizationId),
       ]);
 
       setLeads(leadPayload.leads ?? []);
       setTasks(taskPayload.tasks ?? []);
       setOutreach(outreachPayload.outreach ?? []);
       setEmailDrafts(draftPayload.emailDrafts ?? []);
+      setAgentJobs(jobPayload.jobs ?? []);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load automation data");
     } finally {
@@ -230,13 +251,13 @@ export default function AutomationPage() {
 
   const summary = useMemo(() => {
     return {
-      queue: queueItems.length,
+      queue: queueItems.length + agentJobs.filter((job) => job.status === "queued" || job.status === "running").length,
       draftOutreach: outreach.filter((item) => item.status === "draft").length,
       draftReviews: emailDrafts.filter((draft) => draft.status === "needs_review").length,
       activeTasks: tasks.filter((task) => task.status === "todo" || task.status === "in_progress").length,
       hotLeads: leads.filter((lead) => lead.stage === "bidding" || lead.stage === "submitted").length,
     };
-  }, [queueItems.length, outreach, emailDrafts, tasks, leads]);
+  }, [agentJobs, queueItems.length, outreach, emailDrafts, tasks, leads]);
 
   async function markTaskDone(taskId: string) {
     if (!organizationId) {
@@ -309,6 +330,42 @@ export default function AutomationPage() {
     }
   }
 
+  async function processNextAgentJob() {
+    if (!organizationId) {
+      return;
+    }
+
+    setProcessingJob(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response = await fetch("/api/agent-jobs/process", {
+        method: "POST",
+        headers: { "x-organization-id": organizationId },
+      });
+      const payload = (await response.json()) as ApiPayload;
+
+      if (!response.ok) {
+        throw new Error(getApiError(payload, "Failed to process agent job"));
+      }
+
+      if (payload.processed) {
+        setMessage("Processed one AI job. Generated draft is ready for review.");
+      } else if (payload.retryQueued) {
+        setMessage("AI job failed this attempt and was returned to the queue.");
+      } else {
+        setMessage("No queued AI jobs to process.");
+      }
+
+      await loadAutomationData();
+    } catch (processError) {
+      setError(processError instanceof Error ? processError.message : "Failed to process agent job");
+    } finally {
+      setProcessingJob(false);
+    }
+  }
+
   return (
     <div className="p-6 lg:p-8">
       <PageHeader
@@ -335,20 +392,75 @@ export default function AutomationPage() {
         <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <WorkspaceSelector id="automation-workspace-id" className="w-full lg:max-w-xl" />
-            <button
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!organizationId || loading}
-              onClick={() => void loadAutomationData()}
-              type="button"
-            >
-              {loading ? "Refreshing..." : "Refresh Queue"}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                disabled={!organizationId || processingJob}
+                onClick={() => void processNextAgentJob()}
+                type="button"
+              >
+                {processingJob ? "Processing..." : "Process Next AI Job"}
+              </button>
+              <button
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!organizationId || loading}
+                onClick={() => void loadAutomationData()}
+                type="button"
+              >
+                {loading ? "Refreshing..." : "Refresh Queue"}
+              </button>
+            </div>
           </div>
           <p className="mt-3 text-xs text-gray-500 dark:text-gray-500">
-            Draft outreach and inbound mailbox replies now live under <Link className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline" href="/outreach">Outreach</Link>. Gmail sync can plug into that mailbox model later.
+            AI jobs are durable database records. Use the processor button for local/manual execution; a cron or worker can call the same endpoint later.
           </p>
           {message && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{message}</p>}
           {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+          <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-800">
+            <h3 className="font-semibold text-gray-900 dark:text-white">AI Job Queue</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
+              Queued background work for provider-backed or deterministic agents.
+            </p>
+          </div>
+          <div className="divide-y divide-gray-200 dark:divide-gray-800">
+            {agentJobs.slice(0, 8).map((job) => (
+              <div key={job.id} className="flex flex-col gap-3 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                      {job.type}
+                    </span>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                      job.status === "completed"
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                        : job.status === "failed"
+                          ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                          : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                    }`}>
+                      {job.status}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-500">
+                      attempts {job.attempts}/{job.maxAttempts}
+                    </span>
+                  </div>
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {job.entityType} · {job.entityId}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
+                    Queued {formatDate(job.queuedAt)}{job.error ? ` · ${job.error}` : ""}
+                  </p>
+                </div>
+              </div>
+            ))}
+            {agentJobs.length === 0 && (
+              <div className="px-6 py-10 text-center text-sm text-gray-500 dark:text-gray-500">
+                No AI jobs queued yet. Queue a draft from a lead to populate this list.
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">

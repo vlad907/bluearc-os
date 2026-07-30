@@ -221,6 +221,9 @@ All findings are architectural recommendations for future implementation. None b
 - Added Settings UI controls to generate workspace strategy from the current profile, preview generated positioning/targets/pain points/CTAs, and still manually edit/save the selected strategy context.
 - Added a shared workspace selector component that uses signed-in organization memberships when available and only exposes raw workspace-ID entry as a development fallback.
 - Replaced raw workspace-ID inputs across Dashboard, Settings, Search, Companies, Contacts, Leads, Tasks, Jobs, Vendors, Outreach, Discovery, Automation, Partnerships, and Mailbox with the shared selector.
+- Added durable AgentJob queue foundation with PostgreSQL-backed job records, typed job/status enums, queue/list API (`/api/agent-jobs`), and manual processor API (`/api/agent-jobs/process`) that can later be called by cron or a worker.
+- Extracted lead Agent 2/3 draft generation into a reusable service so inline generation and queued processing share the same deterministic/provider-backed behavior.
+- Added queued lead draft generation: Leads can enqueue draft jobs, Automation shows recent AI jobs, and Automation can process the next queued job into a reviewable EmailDraft/Outreach record.
 
 ## Validation Results
 
@@ -231,6 +234,10 @@ All findings are architectural recommendations for future implementation. None b
 - `npm run build` — pass after workspace AI strategy generation
 - `npm run lint` — pass after shared workspace selector rollout
 - `npm run build` — pass after shared workspace selector rollout
+- `npx prisma generate` — pass after AgentJob queue schema
+- `npx prisma validate` — pass after AgentJob queue schema
+- `npm run lint` — pass after AgentJob queue rollout
+- `npm run build` — pass after AgentJob queue rollout
 
 ## Remaining Before Milestone 2 Completion
 
