@@ -79,6 +79,7 @@ type ApiPayload = {
   jobs?: AgentJob[];
   job?: AgentJob | null;
   processed?: boolean;
+  processedCount?: number;
   retryQueued?: boolean;
   emailDraft?: EmailDraft;
   task?: Task;
@@ -351,7 +352,7 @@ export default function AutomationPage() {
       }
 
       if (payload.processed) {
-        setMessage("Processed one AI job. Generated draft is ready for review.");
+        setMessage(`Processed ${payload.processedCount ?? 1} AI job${(payload.processedCount ?? 1) === 1 ? "" : "s"}. Generated drafts are ready for review.`);
       } else if (payload.retryQueued) {
         setMessage("AI job failed this attempt and was returned to the queue.");
       } else {

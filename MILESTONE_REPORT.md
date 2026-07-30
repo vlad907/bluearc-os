@@ -224,6 +224,7 @@ All findings are architectural recommendations for future implementation. None b
 - Added durable AgentJob queue foundation with PostgreSQL-backed job records, typed job/status enums, queue/list API (`/api/agent-jobs`), and manual processor API (`/api/agent-jobs/process`) that can later be called by cron or a worker.
 - Extracted lead Agent 2/3 draft generation into a reusable service so inline generation and queued processing share the same deterministic/provider-backed behavior.
 - Added queued lead draft generation: Leads can enqueue draft jobs, Automation shows recent AI jobs, and Automation can process the next queued job into a reviewable EmailDraft/Outreach record.
+- Hardened `/api/agent-jobs/process` for worker execution: signed-in users can still process one job manually, while cron/worker callers can authenticate with `AGENT_JOB_WORKER_SECRET`, pass `organizationId`, and process a bounded batch of up to 10 jobs.
 
 ## Validation Results
 
@@ -238,6 +239,8 @@ All findings are architectural recommendations for future implementation. None b
 - `npx prisma validate` — pass after AgentJob queue schema
 - `npm run lint` — pass after AgentJob queue rollout
 - `npm run build` — pass after AgentJob queue rollout
+- `npm run lint` — pass after worker-secret AgentJob processor
+- `npm run build` — pass after worker-secret AgentJob processor
 
 ## Remaining Before Milestone 2 Completion
 
@@ -246,6 +249,7 @@ All findings are architectural recommendations for future implementation. None b
 - Smoke-test core CRUD pages against the migrated database.
 - Remove manual organization ID fallback before production use.
 - Configure `RESEND_API_KEY`, `INVITE_EMAIL_FROM`, and `APP_URL` in deployment for live outbound workspace invitations.
+- Configure `AGENT_JOB_WORKER_SECRET` before wiring a production cron/worker to `/api/agent-jobs/process`.
 
 ## Latest Database Workflow Update
 
