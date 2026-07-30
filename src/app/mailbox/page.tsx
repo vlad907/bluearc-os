@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
 import { useOrganization } from "@/context/OrganizationContext";
 
 type MailboxMessage = {
@@ -97,7 +98,7 @@ async function requestJson(path: string, organizationId: string, method: "GET" |
 }
 
 export default function MailboxPage() {
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId } = useOrganization();
   const [threads, setThreads] = useState<MailboxThread[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
@@ -235,12 +236,7 @@ export default function MailboxPage() {
         title="Mailbox"
         description="Triage inbound replies: classify, draft suggested responses, and approve or reject them before sending."
         action={
-          <input
-            className="w-72 max-w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white"
-            placeholder="Workspace ID"
-            value={organizationId}
-            onChange={(event) => setOrganizationId(event.target.value.trim())}
-          />
+          <WorkspaceSelector id="mailbox-workspace-id" className="w-72 max-w-full" hideLabel />
         }
       />
 

@@ -7,6 +7,7 @@ import RecentActivity from "@/components/dashboard/RecentActivity";
 import FollowupsDue from "@/components/dashboard/FollowupsDue";
 import PipelineOverview from "@/components/dashboard/PipelineOverview";
 import UpcomingTasks from "@/components/dashboard/UpcomingTasks";
+import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
 import { useOrganization } from "@/context/OrganizationContext";
 import { Activity, DashboardInsight, FollowUp, KPIData, PipelineStage, Task } from "@/types";
 import { formatCurrency } from "@/lib/utils";
@@ -49,7 +50,7 @@ function normalizeKpis(kpis: KPIData[]) {
 }
 
 export default function Dashboard() {
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId } = useOrganization();
   const [data, setData] = useState(emptyPayload);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,11 +119,11 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <input
-              className="w-full sm:w-80 px-3 py-2 text-sm bg-white/10 border border-white/15 rounded-lg text-white placeholder:text-indigo-100/50 outline-none focus:ring-2 focus:ring-indigo-300"
-              placeholder="Workspace ID"
-              value={organizationId}
-              onChange={(event) => setOrganizationId(event.target.value)}
+            <WorkspaceSelector
+              id="dashboard-workspace-id"
+              className="w-full sm:w-80"
+              hideLabel
+              tone="hero"
             />
             <Link
               className="px-4 py-2 text-sm font-medium text-center text-white bg-white/10 border border-white/15 rounded-lg hover:bg-white/15 transition-colors"

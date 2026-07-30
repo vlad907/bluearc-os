@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import PageHeader from "@/components/layout/PageHeader";
+import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
 import { useOrganization } from "@/context/OrganizationContext";
 import { classNames } from "@/lib/utils";
 
@@ -63,7 +64,7 @@ function formatDate(value: string) {
 }
 
 export default function SearchPage() {
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId } = useOrganization();
   const [query, setQuery] = useState("");
   const [type, setType] = useState<SearchType>("all");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -158,12 +159,7 @@ export default function SearchPage() {
         title="Global Search"
         description="Search companies, contacts, leads, jobs, vendors, and tasks in the selected workspace."
         action={
-          <input
-            className="w-72 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-            placeholder="Organization ID"
-            value={organizationId}
-            onChange={(event) => setOrganizationId(event.target.value)}
-          />
+          <WorkspaceSelector id="search-workspace-id" className="w-72" hideLabel />
         }
       />
 

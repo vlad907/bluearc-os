@@ -219,6 +219,8 @@ All findings are architectural recommendations for future implementation. None b
 - Added multi-page crawl context to partner candidate fit analysis so partnership scoring can use more than a single submitted page.
 - Added workspace AI strategy generation from the stored workspace profile: `POST /api/workspace/ai-strategy` now tries configured local/OpenAI/Anthropic providers using the preserved workspace-strategy prompt, falls back to deterministic profile-specific strategy when no provider is available or the provider fails, persists the generated JSON, and updates selected target, pain-point, CTA, and guardrail fields.
 - Added Settings UI controls to generate workspace strategy from the current profile, preview generated positioning/targets/pain points/CTAs, and still manually edit/save the selected strategy context.
+- Added a shared workspace selector component that uses signed-in organization memberships when available and only exposes raw workspace-ID entry as a development fallback.
+- Replaced raw workspace-ID inputs across Dashboard, Settings, Search, Companies, Contacts, Leads, Tasks, Jobs, Vendors, Outreach, Discovery, Automation, Partnerships, and Mailbox with the shared selector.
 
 ## Validation Results
 
@@ -227,6 +229,8 @@ All findings are architectural recommendations for future implementation. None b
 - `npm run lint` — pass after core CRUD API expansion
 - `npm run lint` — pass after workspace AI strategy generation
 - `npm run build` — pass after workspace AI strategy generation
+- `npm run lint` — pass after shared workspace selector rollout
+- `npm run build` — pass after shared workspace selector rollout
 
 ## Remaining Before Milestone 2 Completion
 

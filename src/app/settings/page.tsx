@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
 import { useOrganization } from "@/context/OrganizationContext";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -1403,17 +1404,7 @@ export default function SettingsPage() {
             {setupError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{setupError}</p>}
           </form>
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Current Workspace ID
-              </label>
-              <input
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                placeholder="Created workspace UUID"
-                value={organizationId}
-                onChange={(event) => setOrganizationId(event.target.value)}
-              />
-            </div>
+            <WorkspaceSelector id="settings-workspace-id" label="Current Workspace" />
             <button
               className="self-end px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
               disabled={!organizationId}

@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
 import { useOrganization } from "@/context/OrganizationContext";
 
 type PartnerCandidateStatus = "discovered" | "researching" | "qualified" | "contacted" | "converted" | "rejected" | "archived";
@@ -103,7 +104,7 @@ async function requestJson(path: string, organizationId: string, method: "GET" |
 }
 
 export default function PartnersPage() {
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId } = useOrganization();
   const [rawInput, setRawInput] = useState(sampleInput);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [candidates, setCandidates] = useState<PartnerCandidate[]>([]);
@@ -269,12 +270,7 @@ export default function PartnersPage() {
         title="Partnerships"
         description="Build a vendor/subcontractor partnership pipeline from CRM Command candidate research."
         action={
-          <input
-            className="w-72 max-w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white"
-            placeholder="Workspace ID"
-            value={organizationId}
-            onChange={(event) => setOrganizationId(event.target.value.trim())}
-          />
+          <WorkspaceSelector id="partners-workspace-id" className="w-72 max-w-full" hideLabel />
         }
       />
 

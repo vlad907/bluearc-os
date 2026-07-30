@@ -45,6 +45,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Website crawling: lead website research now follows discovered internal pages, stores multiple WebsitePage records, and exposes an extract-contacts action for discovered emails/phones.
 - Partner analysis crawling: partner candidate fit analysis now uses multi-page crawl context instead of relying only on one submitted page.
 - Workspace AI strategy generation: Settings can generate strategy from the stored workspace profile, persist the generated JSON, fill selected target/pain/CTA/guardrail fields, and fall back deterministically when no AI provider is available.
+- Shared workspace selection: main CRM and CRM Command pages now use a membership-aware workspace selector instead of raw UUID entry when a user is signed in; raw ID entry remains only as a development fallback.
 
 ## Key Original Features Not Yet Fully Ported
 
@@ -59,7 +60,7 @@ The old CRM agent prompts are preserved in `src/lib/ai/crm-agent-prompts.ts` wit
 - Background pipeline worker for imported → research → draft → verify → draft/send progression.
 - Automated partner search sourcing via non-Anthropic web search APIs and a background sourcing worker. Anthropic web-search-backed sourcing (`POST /api/partner-candidates/search`), partner candidate storage, fit score, contact emails, contact form URL, status transitions, and conversion to leads now exist.
 - Lead pipeline status compatibility: discovered/imported/researching/researched/drafting/draft_ready/needs_review/approved/sent/replied/converted/archived.
-- Role-specific permissions beyond read/write. Manual `x-organization-id` remains a development bridge and should be removed once every client path uses the signed-in workspace.
+- Role-specific permissions beyond read/write. The client now prefers signed-in workspace memberships, but manual `x-organization-id` still exists as a development bridge and request header until the API/client contract is fully session-derived.
 - Production verification for outbound invite email delivery and deliverability settings. The Resend send path exists with a manual invite-link fallback when email is not configured.
 
 ## Integration Direction
@@ -75,10 +76,10 @@ Do not copy the old FastAPI/SQLite backend directly. Port the product behavior i
 
 ## Recommended Next Merge Passes
 
-1. Replace manual workspace-ID UI with signed-in workspace selection across client pages. The server fallback is already development-only.
-2. Add background queueing on top of `AiProviderCall`. (A per-minute rate limit, estimated per-call USD cost, and a monthly cost cap are now implemented.)
-3. Extend live partner web search to OpenAI/local providers. (Anthropic web-search-backed partner search is now implemented at `POST /api/partner-candidates/search`.)
-4. Add send-as aliases and automated AI classification over synced Gmail messages. (Gmail OAuth connect/callback, draft creation, send, and inbox sync are now implemented.)
+1. Add background queueing on top of `AiProviderCall`. (A per-minute rate limit, estimated per-call USD cost, and a monthly cost cap are now implemented.)
+2. Extend live partner web search to OpenAI/local providers. (Anthropic web-search-backed partner search is now implemented at `POST /api/partner-candidates/search`.)
+3. Add send-as aliases and automated AI classification over synced Gmail messages. (Gmail OAuth connect/callback, draft creation, send, and inbox sync are now implemented.)
+4. Move remaining workspace scoping from explicit `x-organization-id` headers toward signed-in session/default workspace resolution once every route is covered by membership-aware UI.
 5. Add versioned strategy revisions/evals so generated workspace strategy changes can be compared and regression-tested.
 
 ## Future Model Consistency Work

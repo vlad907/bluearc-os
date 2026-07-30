@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
 import { useOrganization } from "@/context/OrganizationContext";
 import { classNames } from "@/lib/utils";
 import { highlightedRecordClass, useHighlightedRecordId } from "@/lib/navigation/highlight";
@@ -83,7 +84,7 @@ function getErrorMessage(payload: unknown, fallback: string) {
 }
 
 export default function VendorsPage() {
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId } = useOrganization();
   const highlightedId = useHighlightedRecordId();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -234,27 +235,13 @@ export default function VendorsPage() {
     }
   }
 
-  function handleOrganizationChange(value: string) {
-    setOrganizationId(value.trim());
-
-    if (!value.trim()) {
-      setVendors([]);
-      setCompanies([]);
-    }
-  }
-
   return (
     <div className="p-6 lg:p-8">
       <PageHeader
         title="Vendors"
         description="Manage your vendor and supplier relationships."
         action={
-          <input
-            className="w-72 max-w-full px-3 py-2 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white placeholder:text-gray-400"
-            placeholder="Organization ID"
-            value={organizationId}
-            onChange={(event) => handleOrganizationChange(event.target.value)}
-          />
+          <WorkspaceSelector id="vendors-workspace-id" className="w-72 max-w-full" hideLabel />
         }
       />
 

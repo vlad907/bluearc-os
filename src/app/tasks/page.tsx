@@ -2,6 +2,7 @@
 
 import React, { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
 import { useOrganization } from "@/context/OrganizationContext";
 import { classNames, getPriorityColor } from "@/lib/utils";
 import { highlightedRecordClass, useHighlightedRecordId } from "@/lib/navigation/highlight";
@@ -100,7 +101,7 @@ function getEntityTypeLabel(type: TaskEntityType) {
 }
 
 export default function TasksPage() {
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId } = useOrganization();
   const highlightedId = useHighlightedRecordId();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [entityOptions, setEntityOptions] = useState<TaskEntityOption[]>([]);
@@ -229,17 +230,6 @@ export default function TasksPage() {
     return () => window.clearTimeout(timeoutId);
   }, [fetchEntityOptions, fetchTasks]);
 
-  function handleOrganizationIdChange(value: string) {
-    const nextOrganizationId = value.trim();
-    setOrganizationId(nextOrganizationId);
-
-    if (!nextOrganizationId) {
-      setTasks([]);
-      setEntityOptions([]);
-      setError(null);
-    }
-  }
-
   async function handleCreateTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -327,15 +317,7 @@ export default function TasksPage() {
         title="Tasks"
         description="Track your tasks and to-dos."
         action={
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-            Org ID
-            <input
-              className="w-56 px-3 py-2 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
-              value={organizationId}
-              onChange={(event) => handleOrganizationIdChange(event.target.value)}
-              placeholder="organizationId"
-            />
-          </label>
+          <WorkspaceSelector id="tasks-workspace-id" className="w-72 max-w-full" hideLabel />
         }
       />
 

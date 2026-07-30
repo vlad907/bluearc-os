@@ -3,6 +3,7 @@
 import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
 import { useOrganization } from "@/context/OrganizationContext";
 
 type Lead = {
@@ -134,7 +135,7 @@ async function patchJson(path: string, organizationId: string, body: Record<stri
 }
 
 export default function AutomationPage() {
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId } = useOrganization();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [outreach, setOutreach] = useState<Outreach[]>([]);
@@ -333,17 +334,7 @@ export default function AutomationPage() {
 
         <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div className="w-full lg:max-w-xl">
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Workspace ID
-              </label>
-              <input
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                value={organizationId}
-                onChange={(event) => setOrganizationId(event.target.value.trim())}
-                placeholder="Create/select one in Settings"
-              />
-            </div>
+            <WorkspaceSelector id="automation-workspace-id" className="w-full lg:max-w-xl" />
             <button
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={!organizationId || loading}

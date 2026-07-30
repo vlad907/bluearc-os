@@ -2,6 +2,7 @@
 
 import React, { FormEvent, useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
 import { useOrganization } from "@/context/OrganizationContext";
 import { classNames, formatCurrency } from "@/lib/utils";
 import { highlightedRecordClass, useHighlightedRecordId } from "@/lib/navigation/highlight";
@@ -153,7 +154,7 @@ function getLeadResearchSummary(lead: Lead) {
 }
 
 export default function LeadsPage() {
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId } = useOrganization();
   const highlightedId = useHighlightedRecordId();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -242,18 +243,6 @@ export default function LeadsPage() {
 
     return () => window.clearTimeout(timeoutId);
   }, [fetchLeads, fetchRelationshipOptions]);
-
-  function handleOrganizationIdChange(value: string) {
-    const nextOrganizationId = value.trim();
-    setOrganizationId(nextOrganizationId);
-
-    if (!nextOrganizationId) {
-      setLeads([]);
-      setCompanies([]);
-      setContacts([]);
-      setError(null);
-    }
-  }
 
   async function handleCreateLead(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -480,15 +469,7 @@ export default function LeadsPage() {
         title="Leads"
         description="Track and manage your sales pipeline."
         action={
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-            Org ID
-            <input
-              className="w-56 px-3 py-2 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
-              value={organizationId}
-              onChange={(event) => handleOrganizationIdChange(event.target.value)}
-              placeholder="organizationId"
-            />
-          </label>
+          <WorkspaceSelector id="leads-workspace-id" className="w-72 max-w-full" hideLabel />
         }
       />
 

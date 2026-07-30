@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
 import { useOrganization } from "@/context/OrganizationContext";
 
 type ApiPayload = {
@@ -78,7 +79,7 @@ async function postJson(path: string, organizationId: string, body: Record<strin
 }
 
 export default function DiscoveryPage() {
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId } = useOrganization();
   const [rawInput, setRawInput] = useState(sampleInput);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
@@ -195,17 +196,7 @@ export default function DiscoveryPage() {
                 Paste CSV or tab-separated rows: company, website, industry, location, phone.
               </p>
             </div>
-            <div className="w-full lg:w-96">
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Workspace ID
-              </label>
-              <input
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                value={organizationId}
-                onChange={(event) => setOrganizationId(event.target.value.trim())}
-                placeholder="Create/select one in Settings"
-              />
-            </div>
+            <WorkspaceSelector id="discovery-workspace-id" className="w-full lg:w-96" />
           </div>
 
           <textarea
