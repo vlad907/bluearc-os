@@ -235,6 +235,7 @@ All findings are architectural recommendations for future implementation. None b
 - Added queued partner sourcing: Partnerships can enqueue `partner_search`, `/api/agent-jobs` stores the workspace-level search intent, and Automation/worker processing can source partner candidates through the same provider-backed web-search path.
 - Extracted Gmail draft sending into a reusable service so inline send and queued processing share connected-account selection, draft metadata checks, Gmail send execution, outbound message upsert, thread completion, and duplicate-send protection.
 - Added queued Gmail sending: Mailbox threads can enqueue `gmail_send_draft`, `/api/agent-jobs` validates signed-in Gmail ownership and mailbox thread access, and Automation/worker processing can send an already-created Gmail draft.
+- Added first lead pipeline orchestration job: Leads can enqueue `lead_research_and_draft`, which runs website crawl + Agent 1 research and immediately generates an Agent 2/3 reviewable EmailDraft/Outreach record in the same worker pass.
 
 ## Validation Results
 
@@ -271,6 +272,10 @@ All findings are architectural recommendations for future implementation. None b
 - `npx prisma validate` — pass after queued Gmail send job type
 - `npm run lint` — pass after queued Gmail send rollout
 - `npm run build` — pass after queued Gmail send rollout
+- `npx prisma generate` — pass after lead pipeline job type
+- `npx prisma validate` — pass after lead pipeline job type
+- `npm run lint` — pass after lead pipeline rollout
+- `npm run build` — pass after lead pipeline rollout
 
 ## Remaining Before Milestone 2 Completion
 

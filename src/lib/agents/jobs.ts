@@ -28,23 +28,39 @@ function serializeError(error: unknown) {
 export async function processAgentJob(job: AgentJob) {
   const payload = asJsonObject(job.payload);
 
-  if (job.type === "lead_research_website") {
+  if (job.type === "lead_research_website" || job.type === "lead_research_and_draft") {
     const url = parseWebsiteUrl(payload.url);
 
     if (!url) {
-      throw new Error("lead_research_website job requires a valid url payload");
+      throw new Error(`${job.type} job requires a valid url payload`);
     }
 
-    const result = await ingestAndResearchLeadWebsite({
+    const researchResult = await ingestAndResearchLeadWebsite({
       organizationId: job.organizationId,
       leadId: job.entityId,
       url,
     });
 
+    if (job.type === "lead_research_and_draft") {
+      const draftResult = await generateLeadEmailDraft({
+        organizationId: job.organizationId,
+        leadId: job.entityId,
+        mode: parseDraftMode(payload.mode),
+      });
+
+      return {
+        leadId: job.entityId,
+        snapshotId: researchResult.snapshot.id,
+        researchRunId: researchResult.researchRun.id,
+        emailDraftId: draftResult.emailDraft.id,
+        outreachId: draftResult.outreach.id,
+      } satisfies Prisma.JsonObject;
+    }
+
     return {
       leadId: job.entityId,
-      snapshotId: result.snapshot.id,
-      researchRunId: result.researchRun.id,
+      snapshotId: researchResult.snapshot.id,
+      researchRunId: researchResult.researchRun.id,
     } satisfies Prisma.JsonObject;
   }
 

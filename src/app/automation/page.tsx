@@ -50,7 +50,7 @@ type EmailDraft = {
 
 type AgentJob = {
   id: string;
-  type: "lead_research_website" | "lead_generate_draft" | "mailbox_suggest_reply" | "gmail_sync_mailbox" | "partner_search" | "gmail_send_draft";
+  type: "lead_research_website" | "lead_generate_draft" | "lead_research_and_draft" | "mailbox_suggest_reply" | "gmail_sync_mailbox" | "partner_search" | "gmail_send_draft";
   status: "queued" | "running" | "completed" | "failed" | "cancelled";
   entityType: string;
   entityId: string;

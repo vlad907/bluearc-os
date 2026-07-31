@@ -39,7 +39,8 @@ function parseJobType(value: unknown): AgentJobType | null {
     value === "mailbox_suggest_reply" ||
     value === "gmail_sync_mailbox" ||
     value === "partner_search" ||
-    value === "gmail_send_draft"
+    value === "gmail_send_draft" ||
+    value === "lead_research_and_draft"
     ? value
     : null;
 }
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
   const entityType = typeof body.entityType === "string" ? body.entityType.trim() : "";
   const entityId = typeof body.entityId === "string" ? body.entityId.trim() : "";
 
-  if ((type === "lead_generate_draft" || type === "lead_research_website") && entityType !== "lead") {
+  if ((type === "lead_generate_draft" || type === "lead_research_website" || type === "lead_research_and_draft") && entityType !== "lead") {
     return jsonError(`${type} jobs require entityType=lead`, 400);
   }
 
@@ -197,10 +198,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const url = type === "lead_research_website" ? parseWebsiteUrl(body.url) : null;
+    const url = type === "lead_research_website" || type === "lead_research_and_draft" ? parseWebsiteUrl(body.url) : null;
 
-    if (type === "lead_research_website" && !url) {
-      return jsonError("lead_research_website jobs require a valid http(s) url", 400);
+    if ((type === "lead_research_website" || type === "lead_research_and_draft") && !url) {
+      return jsonError(`${type} jobs require a valid http(s) url`, 400);
     }
 
     if (type !== "gmail_sync_mailbox" && type !== "partner_search" && type !== "gmail_send_draft") {

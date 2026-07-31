@@ -166,6 +166,7 @@ export default function LeadsPage() {
   const [queueingResearchId, setQueueingResearchId] = useState<string | null>(null);
   const [draftingId, setDraftingId] = useState<string | null>(null);
   const [queueingDraftId, setQueueingDraftId] = useState<string | null>(null);
+  const [queueingPipelineId, setQueueingPipelineId] = useState<string | null>(null);
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [researchUrls, setResearchUrls] = useState<Record<string, string>>({});
   const [researchMessage, setResearchMessage] = useState<string | null>(null);
@@ -509,6 +510,52 @@ export default function LeadsPage() {
     }
   }
 
+  async function handleQueuePipeline(lead: Lead) {
+    if (!organizationId) {
+      return;
+    }
+
+    const url = (researchUrls[lead.id] ?? getLeadWebsiteUrl(lead)).trim();
+
+    if (!url) {
+      setError("Enter a website URL before queueing the pipeline");
+      return;
+    }
+
+    setQueueingPipelineId(lead.id);
+    setResearchMessage(null);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/agent-jobs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({
+          type: "lead_research_and_draft",
+          entityType: "lead",
+          entityId: lead.id,
+          url,
+          mode: "signal",
+        }),
+      });
+      const payload = (await response.json()) as LeadsResponse;
+
+      if (!response.ok) {
+        throw new Error(getApiError(payload, "Failed to queue lead pipeline job"));
+      }
+
+      setResearchUrls((currentUrls) => ({ ...currentUrls, [lead.id]: url }));
+      setResearchMessage("Lead pipeline queued. Automation will research the website and generate a reviewable draft.");
+    } catch (queueError) {
+      setError(queueError instanceof Error ? queueError.message : "Failed to queue lead pipeline job");
+    } finally {
+      setQueueingPipelineId(null);
+    }
+  }
+
   async function handleExtractContacts(lead: Lead) {
     if (!organizationId) {
       return;
@@ -777,6 +824,14 @@ export default function LeadsPage() {
                         type="button"
                       >
                         {queueingDraftId === lead.id ? "Queueing..." : "Queue Draft"}
+                      </button>
+                      <button
+                        className="whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950"
+                        disabled={queueingPipelineId === lead.id}
+                        onClick={() => handleQueuePipeline(lead)}
+                        type="button"
+                      >
+                        {queueingPipelineId === lead.id ? "Queueing..." : "Queue Pipeline"}
                       </button>
                       {getExtractedEmails(lead).length > 0 && (
                         <button
