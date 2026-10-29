@@ -85,6 +85,13 @@ export default function DiscoveryPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Google Places local-business discovery.
+  const [placesLocation, setPlacesLocation] = useState("");
+  const [placesRadiusMiles, setPlacesRadiusMiles] = useState(10);
+  const [placesCategory, setPlacesCategory] = useState("");
+  const [placesMissingWebsiteOnly, setPlacesMissingWebsiteOnly] = useState(false);
+  const [placesSearching, setPlacesSearching] = useState(false);
+
   const rows = useMemo(() => parseProspectRows(rawInput), [rawInput]);
   const selectedRows = useMemo(
     () => rows.filter((row) => selectedIds.has(row.id)),
@@ -111,6 +118,57 @@ export default function DiscoveryPage() {
 
       return new Set(rows.map((row) => row.id));
     });
+  }
+
+  async function searchPlaces() {
+    if (!organizationId || !placesLocation.trim() || !placesCategory.trim()) {
+      return;
+    }
+
+    setPlacesSearching(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response = await fetch("/api/discovery/places", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-organization-id": organizationId },
+        body: JSON.stringify({
+          organizationId,
+          location: placesLocation.trim(),
+          radius: Math.round(placesRadiusMiles * 1609),
+          categories: placesCategory,
+          missingWebsiteOnly: placesMissingWebsiteOnly,
+        }),
+      });
+      const payload = (await response.json()) as {
+        businesses?: Array<{ company: string; websiteUrl: string | null; location: string | null; phone: string | null; businessType: string; rating: number | null; reviewCount: number | null }>;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Places search failed");
+      }
+
+      const businesses = payload.businesses ?? [];
+      if (businesses.length === 0) {
+        setMessage("No businesses found for that location and category.");
+        return;
+      }
+
+      // Feed results into the shared CSV textarea: company, website, industry,
+      // location, phone — so the existing preview + import pipeline handles them.
+      const lines = businesses.map((business) =>
+        [business.company, business.websiteUrl ?? "", business.businessType, business.location ?? "", business.phone ?? ""].join(", "),
+      );
+      setRawInput(lines.join("\n"));
+      setSelectedIds(new Set());
+      setMessage(`Found ${businesses.length} business${businesses.length === 1 ? "" : "es"}. Review below, then select and import.`);
+    } catch (searchError) {
+      setError(searchError instanceof Error ? searchError.message : "Places search failed");
+    } finally {
+      setPlacesSearching(false);
+    }
   }
 
   async function importSelectedRows() {
@@ -188,11 +246,70 @@ export default function DiscoveryPage() {
 
       <div className="space-y-6">
         <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+          <div className="mb-4">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Find Local Businesses</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
+              Search Google Places by location, radius, and category. Results drop into the preview below to review and
+              import. Requires <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">GOOGLE_PLACES_API_KEY</code> on the server.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="lg:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Location</label>
+              <input
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                value={placesLocation}
+                onChange={(event) => setPlacesLocation(event.target.value)}
+                placeholder="Chico, CA  (or an address, or lat,lng)"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Category</label>
+              <input
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                value={placesCategory}
+                onChange={(event) => setPlacesCategory(event.target.value)}
+                placeholder="plumbers, dentists, general contractor…"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Radius: {placesRadiusMiles} mi</label>
+              <input
+                type="range"
+                min={1}
+                max={31}
+                value={placesRadiusMiles}
+                onChange={(event) => setPlacesRadiusMiles(Number(event.target.value))}
+                className="mt-2 w-full"
+              />
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            <button
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!organizationId || !placesLocation.trim() || !placesCategory.trim() || placesSearching}
+              onClick={() => void searchPlaces()}
+              type="button"
+            >
+              {placesSearching ? "Searching…" : "Search Google Places"}
+            </button>
+            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={placesMissingWebsiteOnly}
+                onChange={(event) => setPlacesMissingWebsiteOnly(event.target.checked)}
+              />
+              Only businesses without a website
+            </label>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-white">Prospect Import</h3>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
-                Paste CSV or tab-separated rows: company, website, industry, location, phone.
+                Google Places results land here, or paste your own CSV/tab rows: company, website, industry, location, phone.
               </p>
             </div>
             <div className="w-full lg:w-96">
