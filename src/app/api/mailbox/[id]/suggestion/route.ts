@@ -6,7 +6,7 @@ import { resolveWorkspace } from "@/lib/auth/workspace";
 
 export const dynamic = "force-dynamic";
 
-const actions = ["approve", "reject"] as const;
+const actions = ["approve", "reject", "edit"] as const;
 
 type RouteParams = {
   params: Promise<{ id: string }>;
@@ -15,6 +15,8 @@ type RouteParams = {
 type SuggestionBody = {
   organizationId?: unknown;
   action?: unknown;
+  editedSubject?: unknown;
+  editedBody?: unknown;
 };
 
 function jsonError(message: string, status: number) {
@@ -73,6 +75,28 @@ export async function POST(request: NextRequest, context: RouteParams) {
 
     if (!target) {
       return jsonError("Generate a suggested reply before approving or rejecting", 400);
+    }
+
+    if (action === "edit") {
+      // Persist a human edit of the AI suggestion. The draft/send routes read
+      // suggestedSubject/suggestedBody, so the edit flows through unchanged.
+      const editedBody = typeof body.editedBody === "string" ? body.editedBody.trim() : "";
+      const editedSubject = typeof body.editedSubject === "string" ? body.editedSubject.trim() : "";
+
+      if (!editedBody) {
+        return jsonError("editedBody is required", 400);
+      }
+
+      const message = await prisma.emailMessage.update({
+        where: { id: target.id },
+        data: {
+          suggestedSubject: editedSubject || target.suggestedSubject,
+          suggestedBody: editedBody,
+          suggestionStatus: "pending",
+        },
+      });
+
+      return Response.json({ action, message: { id: message.id, suggestionStatus: message.suggestionStatus } });
     }
 
     if (action === "approve") {
