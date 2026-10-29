@@ -74,12 +74,14 @@ SERVICE + CTA:
 
 The user message gives MODE: SIGNAL, FALLBACK, or SOFT. Obey MODE rules before anything else.
 
-SIGNATURE:
-- If sender contact info is provided, use the real name, title, phone, and email in the sign-off.
-- NEVER use placeholder brackets like [Your Name], [Your Position], [Your Phone Number], or [Your Email].
-- If sender info is missing, end with a simple "Best regards" without placeholders.
+SIGNATURE (critical — drafts with placeholders are rejected):
+- The context JSON includes workspaceProfile with senderName, senderTitle, senderPhone, senderEmail, and businessName. Use those EXACT values in the sign-off.
+- NEVER output placeholder brackets of any kind: no [Your Name], [Your Position], [Your Phone Number], [Your Email], [Company], [anything]. A bracketed placeholder means the draft is thrown out.
+- If a sender field is missing from the profile, omit that line — do not invent a placeholder for it.
+- End the body with: "Best regards," then the real senderName on the next line, then any title/phone/email that exist.
 
-Return JSON only matching the required schema.`,
+OUTPUT — return ONLY this JSON object, no markdown, no backticks:
+{"subject": "<=10 words, specific to the company, no brackets", "email_body": "greeting + 2-3 short specific paragraphs + CTA + signature", "used_signal": "one line on the evidence/signal you used"}`,
   },
   agent2PartnershipOutreach: {
     key: "agent2PartnershipOutreach",
@@ -102,12 +104,13 @@ CONTENT:
 - Reference company_summary and fit reasoning if available.
 - Keep the email concise: 3–4 short paragraphs max.
 
-SIGNATURE:
-- If sender contact info is provided, use the real name, title, phone, and email in the sign-off.
-- NEVER use placeholder brackets like [Your Name], [Your Position], [Your Phone Number], or [Your Email].
-- If sender info is missing, end with a simple "Best regards" without placeholders.
+SIGNATURE (critical — drafts with placeholders are rejected):
+- The context JSON includes workspaceProfile with senderName, senderTitle, senderPhone, senderEmail, and businessName. Use those EXACT values in the sign-off.
+- NEVER output placeholder brackets of any kind ([Your Name], [Company], [anything]). A bracketed placeholder means the draft is thrown out.
+- If a sender field is missing from the profile, omit that line rather than inventing a placeholder.
 
-Return JSON only matching the required schema: subject, email_body, used_signal.`,
+OUTPUT — return ONLY this JSON object, no markdown, no backticks:
+{"subject": "<=10 words, specific, no brackets", "email_body": "greeting + 3-4 short partnership paragraphs + light ask + signature", "used_signal": "one line on the context you used"}`,
   },
   agent2ClaudeLocalOutreach: {
     key: "agent2ClaudeLocalOutreach",
@@ -161,9 +164,15 @@ Context JSON may include strategy_context.agent2_outreach_mode: "signal", "fallb
 General rules:
 - Facts about THIS SPECIFIC LEAD (their business, their goals) stated as FACTS must be supported by the website/agent1. Do not hold hedged / industry-level language as false.
 - Our offer does NOT need to "align with" the lead's services. We pitch TO them.
-- Hold for: (a) false factual claim about THIS lead when phrased as fact, (b) fabricated specifics (invented quotes, fake offerings), (c) wrong CTA for our business type, (d) spam tone. When in doubt, send.
-- You may make minor tone edits in final_email, but do not add new factual claims.
-- If sender contact info is provided, ensure the sign-off uses those real values instead of placeholder brackets like [Your Name].`,
+- Default to "send". Only HOLD for a substantive problem you cannot fix: (a) a false factual claim about THIS lead phrased as fact, (b) fabricated specifics (invented quotes, fake offerings), (c) wrong CTA for our business type, (d) clear spam tone. When in doubt, send.
+
+FIX, do not hold, for cosmetic problems:
+- Placeholder brackets ([Your Name], [Company], [Phone], etc.): REPLACE them in final_email/final_subject with the real values from workspaceProfile (senderName, senderTitle, senderPhone, senderEmail, businessName). If a value is missing, delete that line. Never leave a bracket and never hold solely because of one.
+- Missing or weak sign-off: rewrite it using the real sender fields. End with "Best regards," then the real name, then title/phone/email that exist.
+- Minor tone/wording: you may edit final_email. Do not add new factual claims about the lead.
+
+OUTPUT — return ONLY this JSON object, no markdown, no backticks:
+{"decision": "send" | "hold", "reason": "one sentence", "final_subject": "clean subject, no brackets", "final_email": "the corrected, ready-to-send email with the real signature and no brackets"}`,
   },
   emailClassifier: {
     key: "emailClassifier",

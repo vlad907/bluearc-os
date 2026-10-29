@@ -4,6 +4,7 @@ import { getCrmAgentPrompt } from "@/lib/ai/crm-agent-prompts";
 import { estimateCostUsd } from "@/lib/ai/pricing";
 import { prisma } from "@/lib/prisma";
 import { Agent2DraftInput, Agent2DraftOutput, Agent3VerifierOutput, DraftMode } from "@/lib/outreach/draft-agents";
+import { repairAgent2Draft, repairPlaceholders, validateAgent2Draft } from "@/lib/outreach/draft-quality";
 
 type JsonObject = Record<string, unknown>;
 
@@ -423,6 +424,7 @@ async function callConfiguredJsonAgent(
   promptKey: string,
   systemPrompt: string,
   userPrompt: string,
+  validate?: (output: JsonObject) => string[],
 ) {
   const provider = await getConfiguredAiProvider(organizationId);
 
@@ -456,11 +458,19 @@ async function callConfiguredJsonAgent(
   }
 
   let lastError: unknown = null;
+  let lastResult: { provider: AiProvider["provider"]; model: string; output: JsonObject } | null = null;
+  let repairNote = "";
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     const startedAt = Date.now();
+    // On a repair retry, append the concrete problems so the model fixes them.
+    const effectivePrompt = repairNote
+      ? `${userPrompt}\n\nYour previous response had these problems and was rejected:\n${repairNote}\nReturn corrected JSON only that fixes every problem. No markdown, no commentary.`
+      : userPrompt;
+
     try {
-      const result = await callProviderJson(provider, systemPrompt, userPrompt);
+      const result = await callProviderJson(provider, systemPrompt, effectivePrompt);
+      const validationIssues = validate ? validate(result.output) : [];
       await logProviderCall({
         organizationId,
         provider: provider.provider,
@@ -469,19 +479,23 @@ async function callConfiguredJsonAgent(
         promptKey,
         status: "success",
         durationMs: Date.now() - startedAt,
-        inputChars: systemPrompt.length + userPrompt.length,
+        inputChars: systemPrompt.length + effectivePrompt.length,
         outputChars: result.outputChars,
         usage: result.usage,
-        metadata: { attempt },
+        metadata: { attempt, validationIssues },
       });
 
-      return {
-        provider: provider.provider,
-        model: provider.model,
-        output: result.output,
-      };
+      lastResult = { provider: provider.provider, model: provider.model, output: result.output };
+
+      if (validationIssues.length === 0 || attempt >= 2) {
+        return lastResult;
+      }
+
+      // Valid JSON but failed the quality checks: retry once with the issues.
+      repairNote = validationIssues.map((issue) => `- ${issue}`).join("\n");
     } catch (error) {
       lastError = error;
+      repairNote = "";
       await logProviderCall({
         organizationId,
         provider: provider.provider,
@@ -490,11 +504,15 @@ async function callConfiguredJsonAgent(
         promptKey,
         status: "failed",
         durationMs: Date.now() - startedAt,
-        inputChars: systemPrompt.length + userPrompt.length,
+        inputChars: systemPrompt.length + effectivePrompt.length,
         error: error instanceof Error ? error.message : "Provider call failed",
         metadata: { attempt },
       });
     }
+  }
+
+  if (lastResult) {
+    return lastResult;
   }
 
   throw lastError instanceof Error ? lastError : new Error("Provider call failed");
@@ -530,6 +548,7 @@ export async function runProviderAgent1(organizationId: string, websiteText: str
 
 export async function runProviderAgent2(organizationId: string, input: Agent2DraftInput): Promise<Agent2DraftOutput | null> {
   const prompt = getCrmAgentPrompt(input.mode === "partnership" ? "agent2PartnershipOutreach" : "agent2Outreach");
+  const profile = input.workspaceProfile ?? null;
   const result = await callConfiguredJsonAgent(
     organizationId,
     "agent2",
@@ -545,6 +564,11 @@ export async function runProviderAgent2(organizationId: string, input: Agent2Dra
       workspaceProfile: input.workspaceProfile,
       workspaceStrategy: input.workspaceStrategy,
     }, null, 2),
+    (output) =>
+      validateAgent2Draft(
+        { subject: readString(output.subject), email_body: readString(output.email_body) },
+        { profile },
+      ).hardIssues,
   );
 
   if (!result) {
@@ -558,9 +582,13 @@ export async function runProviderAgent2(organizationId: string, input: Agent2Dra
     throw new Error("Provider Agent 2 output is missing subject or email_body");
   }
 
+  // Deterministic safety net: if the model (and its repair retry) still left
+  // placeholders or dropped the signature, fix them so the draft is sendable.
+  const repaired = repairAgent2Draft({ subject, email_body: emailBody }, profile);
+
   return {
-    subject,
-    email_body: emailBody,
+    subject: repaired.subject,
+    email_body: repaired.email_body,
     used_signal: readString(result.output.used_signal) || "Provider output did not report a used signal.",
     promptKey: prompt.key,
     promptSource: prompt.sourceFile,
@@ -578,6 +606,7 @@ export async function runProviderAgent3(params: {
   workspaceProfile?: JsonObject | null;
 }): Promise<Agent3VerifierOutput | null> {
   const prompt = getCrmAgentPrompt("agent3Verifier");
+  const profile = params.workspaceProfile ?? null;
   const result = await callConfiguredJsonAgent(
     params.organizationId,
     "agent3",
@@ -589,6 +618,22 @@ export async function runProviderAgent3(params: {
       agent1Output: params.agent1Output,
       workspaceProfile: params.workspaceProfile,
     }, null, 2),
+    (output) => {
+      const issues: string[] = [];
+      if (output.decision !== "send" && output.decision !== "hold") {
+        issues.push('decision must be exactly "send" or "hold"');
+      }
+      issues.push(
+        ...validateAgent2Draft(
+          {
+            subject: readString(output.final_subject) || params.draft.subject,
+            email_body: readString(output.final_email) || params.draft.email_body,
+          },
+          { profile },
+        ).hardIssues,
+      );
+      return issues;
+    },
   );
 
   if (!result) {
@@ -596,14 +641,22 @@ export async function runProviderAgent3(params: {
   }
 
   const decision = result.output.decision === "hold" ? "hold" : "send";
-  const finalSubject = readString(result.output.final_subject) || params.draft.subject;
-  const finalEmail = readString(result.output.final_email) || params.draft.email_body;
+
+  // The email that actually gets sent must be clean regardless of the verdict.
+  const finalSubject = repairPlaceholders(readString(result.output.final_subject) || params.draft.subject, profile);
+  const repaired = repairAgent2Draft(
+    {
+      subject: finalSubject,
+      email_body: readString(result.output.final_email) || params.draft.email_body,
+    },
+    profile,
+  );
 
   return {
     decision,
     reason: readString(result.output.reason) || "Provider verifier returned no reason.",
-    final_subject: finalSubject,
-    final_email: finalEmail,
+    final_subject: repaired.subject,
+    final_email: repaired.email_body,
     promptKey: prompt.key,
     promptSource: prompt.sourceFile,
     generationMode: normalizedGenerationMode(result.provider),
