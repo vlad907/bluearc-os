@@ -144,13 +144,14 @@ export default function Dashboard() {
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6">
           <h2 className="font-semibold text-gray-900 dark:text-white">Create or select a workspace</h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            A fresh user should start in Settings, create a workspace, and the app will select it automatically.
+            New here? Run the guided setup to create your workspace, connect AI providers and Gmail, and add your
+            business profile — then the app selects your workspace automatically.
           </p>
           <Link
             className="mt-4 inline-flex px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
-            href="/settings"
+            href="/onboarding"
           >
-            Open Workspace Setup
+            Start guided setup
           </Link>
         </div>
       )}
