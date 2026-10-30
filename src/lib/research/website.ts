@@ -34,12 +34,26 @@ export function inferPageType(url: string) {
 }
 
 export async function fetchWebsiteText(url: string) {
-  const response = await fetch(url, {
-    headers: {
-      "user-agent": "BlueArcOS/0.1 WebsiteResearchBot",
-      accept: "text/html,text/plain;q=0.9,*/*;q=0.8",
-    },
-  });
+  let host = url;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    throw new Error(`Could not reach the website: "${url}" is not a valid URL.`);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        "user-agent": "BlueArcOS/0.1 WebsiteResearchBot",
+        accept: "text/html,text/plain;q=0.9,*/*;q=0.8",
+      },
+    });
+  } catch {
+    // DNS failure, connection refused, TLS error, timeout, etc. Surface a clear
+    // message instead of letting a generic "fetch failed" become a 500.
+    throw new Error(`Could not reach the website ${host} — the site may be down or the address may be mistyped.`);
+  }
 
   if (!response.ok) {
     throw new Error(`Website returned ${response.status}`);

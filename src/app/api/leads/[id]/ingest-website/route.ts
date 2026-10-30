@@ -154,7 +154,12 @@ export async function POST(request: NextRequest, context: RouteParams) {
 
     return Response.json({ snapshot, lead: updatedLead }, { status: 201 });
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("Website returned")) {
+    if (
+      error instanceof Error &&
+      (error.message.startsWith("Website returned") ||
+        error.message.startsWith("Could not reach") ||
+        error.message.includes("no readable text"))
+    ) {
       return jsonError(error.message, 502);
     }
 
