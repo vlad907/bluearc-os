@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import KPICard from "@/components/dashboard/KPICard";
 import RecentActivity from "@/components/dashboard/RecentActivity";
 import FollowupsDue from "@/components/dashboard/FollowupsDue";
@@ -49,10 +50,19 @@ function normalizeKpis(kpis: KPIData[]) {
 }
 
 export default function Dashboard() {
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId, setOrganizationId, user, workspaces, sessionLoaded } = useOrganization();
+  const router = useRouter();
   const [data, setData] = useState(emptyPayload);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // First-run: a signed-in user with no workspace is walked through onboarding
+  // automatically, matching the reference app's "open the app → onboarding" flow.
+  useEffect(() => {
+    if (sessionLoaded && user && workspaces.length === 0 && !organizationId) {
+      router.push("/onboarding");
+    }
+  }, [sessionLoaded, user, workspaces.length, organizationId, router]);
 
   useEffect(() => {
     if (!organizationId) {
