@@ -169,6 +169,8 @@ export default function LeadsPage() {
   const [expectedClose, setExpectedClose] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [contactId, setContactId] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkRunning, setBulkRunning] = useState(false);
 
   const fetchLeads = useCallback(async () => {
     if (!organizationId) {
@@ -431,6 +433,79 @@ export default function LeadsPage() {
     }
   }
 
+  function toggleSelected(leadId: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(leadId)) {
+        next.delete(leadId);
+      } else {
+        next.add(leadId);
+      }
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((current) => (current.size === leads.length ? new Set() : new Set(leads.map((lead) => lead.id))));
+  }
+
+  // Run the full research -> draft -> verify pipeline across the selected leads,
+  // one at a time to stay within provider rate limits. Research runs when a
+  // website URL is known; otherwise the lead is drafted in soft mode.
+  async function runFullPipeline() {
+    if (!organizationId || selectedIds.size === 0) {
+      return;
+    }
+
+    const targets = leads.filter((lead) => selectedIds.has(lead.id));
+    const headers = { "Content-Type": "application/json", "x-organization-id": organizationId };
+    let researched = 0;
+    let drafted = 0;
+    const failures: string[] = [];
+
+    setBulkRunning(true);
+    setError(null);
+    setResearchMessage(`Running pipeline on ${targets.length} lead${targets.length === 1 ? "" : "s"}…`);
+
+    for (const lead of targets) {
+      const url = (researchUrls[lead.id] ?? getLeadWebsiteUrl(lead)).trim();
+      try {
+        if (url) {
+          const ingest = await fetch(`/api/leads/${lead.id}/ingest-website`, { method: "POST", headers, body: JSON.stringify({ url }) });
+          if (!ingest.ok) {
+            throw new Error(getApiError((await ingest.json()) as LeadsResponse, "Website ingest failed"));
+          }
+          const agent1 = await fetch(`/api/leads/${lead.id}/run-agent1`, { method: "POST", headers, body: "{}" });
+          if (!agent1.ok) {
+            throw new Error(getApiError((await agent1.json()) as LeadResearchResponse, "Agent 1 failed"));
+          }
+          researched += 1;
+        }
+
+        const hasResearch = Boolean(url) || Boolean(getLeadResearchSummary(lead));
+        const draft = await fetch(`/api/leads/${lead.id}/generate-draft`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ mode: hasResearch ? "signal" : "soft" }),
+        });
+        if (!draft.ok) {
+          throw new Error(getApiError((await draft.json()) as DraftResponse, "Draft generation failed"));
+        }
+        drafted += 1;
+      } catch (pipelineError) {
+        failures.push(`${lead.title}: ${pipelineError instanceof Error ? pipelineError.message : "failed"}`);
+      }
+    }
+
+    await fetchLeads();
+    setSelectedIds(new Set());
+    setBulkRunning(false);
+    setResearchMessage(`Pipeline complete: researched ${researched}, drafted ${drafted} of ${targets.length} selected${failures.length ? `, ${failures.length} failed` : ""}.`);
+    if (failures.length) {
+      setError(failures.join(" · "));
+    }
+  }
+
   return (
     <div className="p-6 lg:p-8">
       <PageHeader
@@ -545,11 +620,43 @@ export default function LeadsPage() {
         </div>
       )}
 
+      {organizationId && leads.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
+          <button
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={selectedIds.size === 0 || bulkRunning}
+            onClick={() => void runFullPipeline()}
+            type="button"
+          >
+            {bulkRunning ? "Running pipeline…" : `Run Full Pipeline${selectedIds.size ? ` (${selectedIds.size})` : ""}`}
+          </button>
+          <button
+            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+            disabled={bulkRunning}
+            onClick={toggleSelectAll}
+            type="button"
+          >
+            {selectedIds.size === leads.length ? "Clear selection" : "Select all"}
+          </button>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Research (where a website is known) → draft → verify, for each selected lead.
+          </span>
+        </div>
+      )}
+
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
+                <th className="w-10 px-5 py-3.5">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all leads"
+                    checked={leads.length > 0 && selectedIds.size === leads.length}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
                 <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Deal</th>
                 <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Account</th>
                 <th className="text-left px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Stage</th>
@@ -563,21 +670,21 @@ export default function LeadsPage() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {!organizationId && (
                 <tr>
-                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={8}>
+                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={9}>
                     Enter an organization ID to load leads.
                   </td>
                 </tr>
               )}
               {organizationId && loading && (
                 <tr>
-                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={8}>
+                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={9}>
                     Loading leads...
                   </td>
                 </tr>
               )}
               {organizationId && !loading && leads.length === 0 && (
                 <tr>
-                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={8}>
+                  <td className="px-5 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={9}>
                     No leads yet.
                   </td>
                 </tr>
@@ -594,6 +701,14 @@ export default function LeadsPage() {
                     highlightedRecordClass(lead.id, highlightedId),
                   )}
                 >
+                  <td className="px-5 py-4">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${lead.title}`}
+                      checked={selectedIds.has(lead.id)}
+                      onChange={() => toggleSelected(lead.id)}
+                    />
+                  </td>
                   <td className="px-5 py-4 font-medium text-gray-900 dark:text-white">
                     <Link href={`/leads/${lead.id}`} className="hover:text-indigo-600 hover:underline dark:hover:text-indigo-400">
                       {lead.title}
