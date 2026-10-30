@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React, { FormEvent, useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
 import { useOrganization } from "@/context/OrganizationContext";
@@ -594,7 +595,9 @@ export default function LeadsPage() {
                   )}
                 >
                   <td className="px-5 py-4 font-medium text-gray-900 dark:text-white">
-                    <div>{lead.title}</div>
+                    <Link href={`/leads/${lead.id}`} className="hover:text-indigo-600 hover:underline dark:hover:text-indigo-400">
+                      {lead.title}
+                    </Link>
                     {researchSummary?.oneLiner && (
                       <div className="mt-1 max-w-xs truncate text-xs font-normal text-gray-500 dark:text-gray-400">
                         {researchSummary.oneLiner}

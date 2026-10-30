@@ -189,6 +189,23 @@ export async function GET(request: NextRequest, context: RouteParams) {
   try {
     const lead = await prisma.lead.findFirst({
       where: { id, organizationId, deletedAt: null },
+      include: {
+        company: {
+          select: { id: true, name: true, website: true, domain: true, phone: true, industry: true },
+        },
+        contact: {
+          select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+        },
+        agentResearchRuns: {
+          where: { agent: "agent1" },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+        emailDrafts: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+      },
     });
 
     if (!lead) {
