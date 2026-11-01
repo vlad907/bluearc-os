@@ -212,13 +212,70 @@ All findings are architectural recommendations for future implementation. None b
 - Added AI cost and rate controls on top of `AiProviderCall`: estimated per-call USD cost from a model pricing table (`src/lib/ai/pricing.ts`), a per-minute call rate limit, a monthly cost cap, provider pre-call enforcement of both, and a Settings usage dashboard that surfaces estimated cost totals and per-provider spend.
 - Added a suggested-reply review lifecycle for the mailbox: a `suggestionStatus` field on `EmailMessage` (pending → approved/rejected → drafted → sent), a `POST /api/mailbox/[id]/suggestion` approve/reject endpoint (reject clears the draft and returns the thread to the reply queue), and lifecycle transitions wired through Gmail draft creation and send.
 - Added live partner web search via a configured Anthropic provider's web-search server tool (`POST /api/partner-candidates/search`): builds a query from the workspace profile/strategy or an explicit prompt, sources real vendor/subcontractor companies, de-duplicates against existing candidates, persists them as `PartnerCandidate` records, and logs the call through the AI cost/rate guardrails; Partners page gains a search box. Non-Anthropic providers skip honestly instead of fabricating companies.
+- Added a standalone Mailbox page under the CRM Command submenu with thread filters, linked CRM context, suggested-reply review, Gmail draft/send actions, Gmail sync, and thread status transitions.
+- Added mailbox thread status controls so inbox work can move through open, needs-reply, drafted, done, and archived states without leaving the mailbox.
+- Added multi-page lead website crawling by following discovered internal links from submitted lead websites and storing the crawled pages with the lead research snapshot.
+- Added a lead website contact extraction action that converts discovered emails/phones from website research into CRM contact records.
+- Added multi-page crawl context to partner candidate fit analysis so partnership scoring can use more than a single submitted page.
+- Added workspace AI strategy generation from the stored workspace profile: `POST /api/workspace/ai-strategy` now tries configured local/OpenAI/Anthropic providers using the preserved workspace-strategy prompt, falls back to deterministic profile-specific strategy when no provider is available or the provider fails, persists the generated JSON, and updates selected target, pain-point, CTA, and guardrail fields.
+- Added Settings UI controls to generate workspace strategy from the current profile, preview generated positioning/targets/pain points/CTAs, and still manually edit/save the selected strategy context.
+- Added a shared workspace selector component that uses signed-in organization memberships when available and only exposes raw workspace-ID entry as a development fallback.
+- Replaced raw workspace-ID inputs across Dashboard, Settings, Search, Companies, Contacts, Leads, Tasks, Jobs, Vendors, Outreach, Discovery, Automation, Partnerships, and Mailbox with the shared selector.
+- Added durable AgentJob queue foundation with PostgreSQL-backed job records, typed job/status enums, queue/list API (`/api/agent-jobs`), and manual processor API (`/api/agent-jobs/process`) that can later be called by cron or a worker.
+- Extracted lead Agent 2/3 draft generation into a reusable service so inline generation and queued processing share the same deterministic/provider-backed behavior.
+- Added queued lead draft generation: Leads can enqueue draft jobs, Automation shows recent AI jobs, and Automation can process the next queued job into a reviewable EmailDraft/Outreach record.
+- Hardened `/api/agent-jobs/process` for worker execution: signed-in users can still process one job manually, while cron/worker callers can authenticate with `AGENT_JOB_WORKER_SECRET`, pass `organizationId`, and process a bounded batch of up to 10 jobs.
+- Extracted lead website ingestion and Agent 1 research into reusable services so inline research and queued processing share the same crawl, provider, deterministic fallback, and persistence behavior.
+- Added queued lead website research: Leads can enqueue website crawl + Agent 1 jobs, AgentJob now supports `lead_research_website`, and Automation/worker processing can execute research jobs before draft jobs.
+- Extracted mailbox suggested-reply generation into a reusable service so inline mailbox drafting and queued processing share the same prompt lineage, deterministic reply logic, thread status updates, and suggestion lifecycle writes.
+- Added queued mailbox reply drafting: Mailbox threads can enqueue `mailbox_suggest_reply` jobs, `/api/agent-jobs` validates `email_thread` ownership, and Automation/worker processing can generate pending suggested replies for later review.
+- Extracted Gmail mailbox sync into a reusable service so inline sync and queued processing share token refresh, Gmail fetch, classification, duplicate detection, link resolution, thread/message persistence, and connection error tracking.
+- Added queued Gmail mailbox sync: Mailbox can enqueue `gmail_sync_mailbox`, `/api/agent-jobs` validates the signed-in user's connected Gmail account, and Automation/worker processing can import Gmail messages in the background.
+- Extracted live partner search into a reusable service so inline search and queued processing share workspace-profile query generation, provider execution, duplicate filtering, candidate persistence, provider metadata, and provider error handling.
+- Added queued partner sourcing: Partnerships can enqueue `partner_search`, `/api/agent-jobs` stores the workspace-level search intent, and Automation/worker processing can source partner candidates through the same provider-backed web-search path.
+- Extracted Gmail draft sending into a reusable service so inline send and queued processing share connected-account selection, draft metadata checks, Gmail send execution, outbound message upsert, thread completion, and duplicate-send protection.
+- Added queued Gmail sending: Mailbox threads can enqueue `gmail_send_draft`, `/api/agent-jobs` validates signed-in Gmail ownership and mailbox thread access, and Automation/worker processing can send an already-created Gmail draft.
+- Added first lead pipeline orchestration job: Leads can enqueue `lead_research_and_draft`, which runs website crawl + Agent 1 research and immediately generates an Agent 2/3 reviewable EmailDraft/Outreach record in the same worker pass.
 
 ## Validation Results
 
 - `npx prisma generate` — pass
 - `npx prisma validate` — pass
 - `npm run lint` — pass after core CRUD API expansion
-- `npm run build` — pass
+- `npm run lint` — pass after workspace AI strategy generation
+- `npm run build` — pass after workspace AI strategy generation
+- `npm run lint` — pass after shared workspace selector rollout
+- `npm run build` — pass after shared workspace selector rollout
+- `npx prisma generate` — pass after AgentJob queue schema
+- `npx prisma validate` — pass after AgentJob queue schema
+- `npm run lint` — pass after AgentJob queue rollout
+- `npm run build` — pass after AgentJob queue rollout
+- `npm run lint` — pass after worker-secret AgentJob processor
+- `npm run build` — pass after worker-secret AgentJob processor
+- `npx prisma generate` — pass after queued website research job type
+- `npx prisma validate` — pass after queued website research job type
+- `npm run lint` — pass after queued website research rollout
+- `npm run build` — pass after queued website research rollout
+- `npx prisma generate` — pass after queued mailbox reply job type
+- `npx prisma validate` — pass after queued mailbox reply job type
+- `npm run lint` — pass after queued mailbox reply rollout
+- `npm run build` — pass after queued mailbox reply rollout
+- `npx prisma generate` — pass after queued Gmail sync job type
+- `npx prisma validate` — pass after queued Gmail sync job type
+- `npm run lint` — pass after queued Gmail sync rollout
+- `npm run build` — pass after queued Gmail sync rollout
+- `npx prisma generate` — pass after queued partner search job type
+- `npx prisma validate` — pass after queued partner search job type
+- `npm run lint` — pass after queued partner search rollout
+- `npm run build` — pass after queued partner search rollout
+- `npx prisma generate` — pass after queued Gmail send job type
+- `npx prisma validate` — pass after queued Gmail send job type
+- `npm run lint` — pass after queued Gmail send rollout
+- `npm run build` — pass after queued Gmail send rollout
+- `npx prisma generate` — pass after lead pipeline job type
+- `npx prisma validate` — pass after lead pipeline job type
+- `npm run lint` — pass after lead pipeline rollout
+- `npm run build` — pass after lead pipeline rollout
 
 ## Remaining Before Milestone 2 Completion
 
@@ -227,6 +284,7 @@ All findings are architectural recommendations for future implementation. None b
 - Smoke-test core CRUD pages against the migrated database.
 - Remove manual organization ID fallback before production use.
 - Configure `RESEND_API_KEY`, `INVITE_EMAIL_FROM`, and `APP_URL` in deployment for live outbound workspace invitations.
+- Configure `AGENT_JOB_WORKER_SECRET` before wiring a production cron/worker to `/api/agent-jobs/process`.
 
 ## Latest Database Workflow Update
 

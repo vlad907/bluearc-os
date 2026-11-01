@@ -3,6 +3,7 @@
 import Link from "next/link";
 import React, { FormEvent, useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
 import { useOrganization } from "@/context/OrganizationContext";
 import { classNames, formatCurrency } from "@/lib/utils";
 import { highlightedRecordClass, useHighlightedRecordId } from "@/lib/navigation/highlight";
@@ -124,6 +125,11 @@ function getLeadWebsiteUrl(lead: Lead) {
   return lead.company?.website ?? lead.company?.domain ?? "";
 }
 
+function getExtractedEmails(lead: Lead) {
+  const value = lead.metadata?.extractedEmails;
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
 function getContactName(contact: ContactOption) {
   return [contact.firstName, contact.lastName].filter(Boolean).join(" ");
 }
@@ -149,7 +155,7 @@ function getLeadResearchSummary(lead: Lead) {
 }
 
 export default function LeadsPage() {
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId } = useOrganization();
   const highlightedId = useHighlightedRecordId();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -158,7 +164,11 @@ export default function LeadsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [researchingId, setResearchingId] = useState<string | null>(null);
+  const [queueingResearchId, setQueueingResearchId] = useState<string | null>(null);
   const [draftingId, setDraftingId] = useState<string | null>(null);
+  const [queueingDraftId, setQueueingDraftId] = useState<string | null>(null);
+  const [queueingPipelineId, setQueueingPipelineId] = useState<string | null>(null);
+  const [extractingId, setExtractingId] = useState<string | null>(null);
   const [researchUrls, setResearchUrls] = useState<Record<string, string>>({});
   const [researchMessage, setResearchMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -239,18 +249,6 @@ export default function LeadsPage() {
 
     return () => window.clearTimeout(timeoutId);
   }, [fetchLeads, fetchRelationshipOptions]);
-
-  function handleOrganizationIdChange(value: string) {
-    const nextOrganizationId = value.trim();
-    setOrganizationId(nextOrganizationId);
-
-    if (!nextOrganizationId) {
-      setLeads([]);
-      setCompanies([]);
-      setContacts([]);
-      setError(null);
-    }
-  }
 
   async function handleCreateLead(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -401,6 +399,51 @@ export default function LeadsPage() {
     }
   }
 
+  async function handleQueueResearch(lead: Lead) {
+    if (!organizationId) {
+      return;
+    }
+
+    const url = (researchUrls[lead.id] ?? getLeadWebsiteUrl(lead)).trim();
+
+    if (!url) {
+      setError("Enter a website URL before queueing research");
+      return;
+    }
+
+    setQueueingResearchId(lead.id);
+    setResearchMessage(null);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/agent-jobs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({
+          type: "lead_research_website",
+          entityType: "lead",
+          entityId: lead.id,
+          url,
+        }),
+      });
+      const payload = (await response.json()) as LeadsResponse;
+
+      if (!response.ok) {
+        throw new Error(getApiError(payload, "Failed to queue research job"));
+      }
+
+      setResearchUrls((currentUrls) => ({ ...currentUrls, [lead.id]: url }));
+      setResearchMessage("Website research queued. Process it from Automation when ready.");
+    } catch (queueError) {
+      setError(queueError instanceof Error ? queueError.message : "Failed to queue research job");
+    } finally {
+      setQueueingResearchId(null);
+    }
+  }
+
   async function handleGenerateDraft(lead: Lead) {
     if (!organizationId) {
       return;
@@ -506,21 +549,134 @@ export default function LeadsPage() {
     }
   }
 
+  async function handleQueueDraft(lead: Lead) {
+    if (!organizationId) {
+      return;
+    }
+
+    setQueueingDraftId(lead.id);
+    setResearchMessage(null);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/agent-jobs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({
+          type: "lead_generate_draft",
+          entityType: "lead",
+          entityId: lead.id,
+          mode: getLeadResearchSummary(lead) ? "signal" : "soft",
+        }),
+      });
+      const payload = (await response.json()) as LeadsResponse;
+
+      if (!response.ok) {
+        throw new Error(getApiError(payload, "Failed to queue draft job"));
+      }
+
+      setResearchMessage("Draft generation queued. Process it from Automation when ready.");
+    } catch (queueError) {
+      setError(queueError instanceof Error ? queueError.message : "Failed to queue draft job");
+    } finally {
+      setQueueingDraftId(null);
+    }
+  }
+
+  async function handleQueuePipeline(lead: Lead) {
+    if (!organizationId) {
+      return;
+    }
+
+    const url = (researchUrls[lead.id] ?? getLeadWebsiteUrl(lead)).trim();
+
+    if (!url) {
+      setError("Enter a website URL before queueing the pipeline");
+      return;
+    }
+
+    setQueueingPipelineId(lead.id);
+    setResearchMessage(null);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/agent-jobs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({
+          type: "lead_research_and_draft",
+          entityType: "lead",
+          entityId: lead.id,
+          url,
+          mode: "signal",
+        }),
+      });
+      const payload = (await response.json()) as LeadsResponse;
+
+      if (!response.ok) {
+        throw new Error(getApiError(payload, "Failed to queue lead pipeline job"));
+      }
+
+      setResearchUrls((currentUrls) => ({ ...currentUrls, [lead.id]: url }));
+      setResearchMessage("Lead pipeline queued. Automation will research the website and generate a reviewable draft.");
+    } catch (queueError) {
+      setError(queueError instanceof Error ? queueError.message : "Failed to queue lead pipeline job");
+    } finally {
+      setQueueingPipelineId(null);
+    }
+  }
+
+  async function handleExtractContacts(lead: Lead) {
+    if (!organizationId) {
+      return;
+    }
+
+    setExtractingId(lead.id);
+    setResearchMessage(null);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/leads/${lead.id}/extract-contacts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({}),
+      });
+      const payload = (await response.json()) as { createdCount?: number; skippedCount?: number; error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to extract contacts");
+      }
+
+      const created = payload.createdCount ?? 0;
+      const skipped = payload.skippedCount ?? 0;
+      setResearchMessage(
+        `Created ${created} contact${created === 1 ? "" : "s"} from website research` +
+          (skipped ? ` (${skipped} already existed).` : "."),
+      );
+      await fetchRelationshipOptions();
+    } catch (extractError) {
+      setError(extractError instanceof Error ? extractError.message : "Failed to extract contacts");
+    } finally {
+      setExtractingId(null);
+    }
+  }
+
   return (
     <div className="p-6 lg:p-8">
       <PageHeader
         title="Leads"
         description="Track and manage your sales pipeline."
         action={
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-            Org ID
-            <input
-              className="w-56 px-3 py-2 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white"
-              value={organizationId}
-              onChange={(event) => handleOrganizationIdChange(event.target.value)}
-              placeholder="organizationId"
-            />
-          </label>
+          <WorkspaceSelector id="leads-workspace-id" className="w-72 max-w-full" hideLabel />
         }
       />
 
@@ -765,12 +921,46 @@ export default function LeadsPage() {
                       </button>
                       <button
                         className="whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                        disabled={queueingResearchId === lead.id}
+                        onClick={() => handleQueueResearch(lead)}
+                        type="button"
+                      >
+                        {queueingResearchId === lead.id ? "Queueing..." : "Queue Research"}
+                      </button>
+                      <button
+                        className="whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
                         disabled={draftingId === lead.id}
                         onClick={() => handleGenerateDraft(lead)}
                         type="button"
                       >
                         {draftingId === lead.id ? "Drafting..." : "Agent 2/3 Draft"}
                       </button>
+                      <button
+                        className="whitespace-nowrap rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-950"
+                        disabled={queueingDraftId === lead.id}
+                        onClick={() => handleQueueDraft(lead)}
+                        type="button"
+                      >
+                        {queueingDraftId === lead.id ? "Queueing..." : "Queue Draft"}
+                      </button>
+                      <button
+                        className="whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950"
+                        disabled={queueingPipelineId === lead.id}
+                        onClick={() => handleQueuePipeline(lead)}
+                        type="button"
+                      >
+                        {queueingPipelineId === lead.id ? "Queueing..." : "Queue Pipeline"}
+                      </button>
+                      {getExtractedEmails(lead).length > 0 && (
+                        <button
+                          className="whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                          disabled={extractingId === lead.id}
+                          onClick={() => handleExtractContacts(lead)}
+                          type="button"
+                        >
+                          {extractingId === lead.id ? "Extracting..." : `Extract ${getExtractedEmails(lead).length} Contact${getExtractedEmails(lead).length === 1 ? "" : "s"}`}
+                        </button>
+                      )}
                     </div>
                     {researchSummary?.confidence !== null && researchSummary?.confidence !== undefined && (
                       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">

@@ -1,4 +1,5 @@
 import { getCrmAgentPrompt } from "@/lib/ai/crm-agent-prompts";
+import { buildSignature, repairAgent2Draft, validateAgent2Draft } from "@/lib/outreach/draft-quality";
 
 type JsonObject = Record<string, unknown>;
 
@@ -88,32 +89,6 @@ function workspaceService(input: Agent2DraftInput) {
   };
 }
 
-function signature(profile?: JsonObject | null) {
-  const senderName = readString(profile?.senderName);
-  const senderTitle = readString(profile?.senderTitle);
-  const senderPhone = readString(profile?.senderPhone);
-  const senderEmail = readString(profile?.senderEmail);
-  const lines = ["Best regards"];
-
-  if (senderName) {
-    lines.push(senderName);
-  }
-
-  if (senderTitle) {
-    lines.push(senderTitle);
-  }
-
-  if (senderPhone) {
-    lines.push(senderPhone);
-  }
-
-  if (senderEmail) {
-    lines.push(senderEmail);
-  }
-
-  return lines.join("\n");
-}
-
 export function runDeterministicAgent2(input: Agent2DraftInput): Agent2DraftOutput {
   const prompt = getCrmAgentPrompt(input.mode === "partnership" ? "agent2PartnershipOutreach" : "agent2Outreach");
   const service = workspaceService(input);
@@ -132,8 +107,8 @@ export function runDeterministicAgent2(input: Agent2DraftInput): Agent2DraftOutp
           : `I wanted to reach out after looking at ${companyName}.`;
   const body =
     input.mode === "partnership"
-      ? `Hi${contactName},\n\n${opener}\n\n${service.businessName} handles ${service.service}, and I wanted to see if there is a fit to support your project pipeline as a local field partner when coverage is needed.\n\n${service.cta}\n\n${signature(input.workspaceProfile)}`
-      : `Hi${contactName},\n\n${opener}\n\n${service.businessName} helps teams with ${service.service}. If this is relevant, I can keep it practical and focus on where we may be useful rather than sending a generic pitch.\n\n${service.cta}\n\n${signature(input.workspaceProfile)}`;
+      ? `Hi${contactName},\n\n${opener}\n\n${service.businessName} handles ${service.service}, and I wanted to see if there is a fit to support your project pipeline as a local field partner when coverage is needed.\n\n${service.cta}\n\n${buildSignature(input.workspaceProfile)}`
+      : `Hi${contactName},\n\n${opener}\n\n${service.businessName} helps teams with ${service.service}. If this is relevant, I can keep it practical and focus on where we may be useful rather than sending a generic pitch.\n\n${service.cta}\n\n${buildSignature(input.workspaceProfile)}`;
 
   return {
     subject: input.mode === "partnership" ? `Potential field partner for ${companyName}` : `Quick question for ${companyName}`,
@@ -152,22 +127,24 @@ export function runDeterministicAgent3(params: {
   workspaceProfile?: JsonObject | null;
 }): Agent3VerifierOutput {
   const prompt = getCrmAgentPrompt("agent3Verifier");
-  const finalEmail = params.draft.email_body.replace(/\[[^\]]+\]/g, "").trim();
-  const hasPlaceholder = /\[[^\]]+\]/.test(params.draft.email_body);
-  const senderName = readString(params.workspaceProfile?.senderName);
-  const hasSpecificSignal = Boolean(firstSignal(params.agent1Output));
-  const sendable =
-    !hasPlaceholder &&
-    (params.mode !== "signal" || hasSpecificSignal) &&
-    (!senderName || finalEmail.includes(senderName));
+
+  // Repair first (fill placeholders, guarantee a signature), then judge the
+  // repaired draft. This avoids the old contradiction of stripping a
+  // placeholder yet still holding the draft for having had one.
+  const repaired = repairAgent2Draft(
+    { subject: params.draft.subject, email_body: params.draft.email_body },
+    params.workspaceProfile,
+  );
+  const { hardIssues } = validateAgent2Draft(repaired, { profile: params.workspaceProfile });
+  const sendable = hardIssues.length === 0;
 
   return {
     decision: sendable ? "send" : "hold",
     reason: sendable
-      ? "Draft passes placeholder, signal support, and signature checks."
-      : "Draft needs human review because signal support or sender signature is incomplete.",
-    final_subject: params.draft.subject,
-    final_email: finalEmail,
+      ? "Draft is sendable: no placeholders, a real signature, and a non-empty subject and body."
+      : `Held for human review: ${hardIssues.join("; ")}.`,
+    final_subject: repaired.subject,
+    final_email: repaired.email_body,
     promptKey: prompt.key,
     promptSource: prompt.sourceFile,
     generationMode: "deterministic_v1",

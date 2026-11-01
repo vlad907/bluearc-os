@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 300" role="img" aria-labelledby="title desc">
+  <title id="title">Blue Arc Networks logo</title>
+  <desc id="desc">A blue network cable forming an arc beside the words Blue Arc Networks.</desc>
+
+  <defs>
+    <linearGradient id="cable" x1="68" y1="252" x2="272" y2="35" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#aee8f7"/>
+      <stop offset="0.26" stop-color="#36bce8"/>
+      <stop offset="0.58" stop-color="#0099e9"/>
+      <stop offset="0.80" stop-color="#00c9ef"/>
+      <stop offset="1" stop-color="#068de2"/>
+    </linearGradient>
+    <linearGradient id="cableShade" x1="57" y1="225" x2="260" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#168ed7" stop-opacity="0"/>
+      <stop offset="0.72" stop-color="#006cc5" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#004a9a" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="highlight" x1="44" y1="196" x2="257" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#edfefe" stop-opacity="0"/>
+      <stop offset="0.27" stop-color="#baf8fb" stop-opacity="0.84"/>
+      <stop offset="0.68" stop-color="#b9ffff"/>
+      <stop offset="1" stop-color="#54e7f4" stop-opacity="0.2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Cable arc -->
+  <path fill="url(#cable)" d="M87 278C35 247 7 202 14 146 25 55 103-8 194 13c63 15 111 62 130 126l-46 14c-13-47-48-82-95-93C119 45 65 88 59 151c-5 48 6 90 28 127Z"/>
+  <path fill="url(#cableShade)" d="M87 278C35 247 7 202 14 146 25 55 103-8 194 13c63 15 111 62 130 126l-19 6c-17-55-59-95-115-108C113 39 48 91 41 157c-5 48 11 90 46 121Z"/>
+  <path d="M33 186C28 119 65 60 123 38c72-28 153 11 178 88" fill="none" stroke="url(#highlight)" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- RJ45-style connector -->
+  <g transform="translate(288 126) rotate(-20)">
+    <path fill="#062c58" d="M-28 0h56v18h-56z"/>
+    <path fill="#062c58" d="M-22 26h44v12h-44z"/>
+    <path fill="#062c58" d="M-31 35Q-31 29-25 29h50q6 0 6 6v49h-62z"/>
+    <path fill="#041f40" d="M-26 84h52v27q0 9-9 9h-34q-9 0-9-9z"/>
+    <path fill="#16afe6" d="M-15 91a2.5 2.5 0 0 1 5 0v23h-5z"/>
+    <path fill="#16afe6" d="M-2.5 91a2.5 2.5 0 0 1 5 0v23h-5z"/>
+    <path fill="#16afe6" d="M10 91a2.5 2.5 0 0 1 5 0v23h-5z"/>
+  </g>
+
+  <!-- Wordmark -->
+  <g transform="translate(382 183) scale(1.08 1)">
+    <text x="0" y="0" fill="#052c57" font-family="Avenir Next, Avenir, Arial, sans-serif" font-size="108" font-weight="700" letter-spacing="-4">Blue Arc</text>
+  </g>
+  <g transform="translate(424 247) scale(1.18 1)">
+    <text x="0" y="0" fill="#18abe0" font-family="Avenir Next, Avenir, Arial, sans-serif" font-size="48" font-weight="600" letter-spacing="8">NETWORKS</text>
+  </g>
+</svg>

@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
 import { useOrganization } from "@/context/OrganizationContext";
 import { classNames } from "@/lib/utils";
 
@@ -252,7 +253,7 @@ function threadLinkLabel(thread: EmailThread) {
 }
 
 export default function OutreachPage() {
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId } = useOrganization();
   const [activeTab, setActiveTab] = useState<"log" | "mailbox">("mailbox");
   const [outreach, setOutreach] = useState<Outreach[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -765,12 +766,7 @@ export default function OutreachPage() {
         title="Outreach"
         description="Track outreach, review inbound mailbox threads, and generate suggested replies."
         action={
-          <input
-            className="w-72 max-w-full px-3 py-2 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white placeholder:text-gray-400"
-            placeholder="Organization ID"
-            value={organizationId}
-            onChange={(event) => setOrganizationId(event.target.value)}
-          />
+          <WorkspaceSelector id="outreach-workspace-id" className="w-72 max-w-full" hideLabel />
         }
       />
 

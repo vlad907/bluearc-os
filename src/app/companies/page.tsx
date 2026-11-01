@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
 
 import PageHeader from "@/components/layout/PageHeader";
+import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
 import { useOrganization } from "@/context/OrganizationContext";
 import { classNames } from "@/lib/utils";
 import { highlightedRecordClass, useHighlightedRecordId } from "@/lib/navigation/highlight";
@@ -55,7 +56,7 @@ async function readApiError(response: Response) {
 }
 
 export default function CompaniesPage() {
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId } = useOrganization();
   const highlightedId = useHighlightedRecordId();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [form, setForm] = useState<CompanyForm>(emptyForm);
@@ -180,15 +181,10 @@ export default function CompaniesPage() {
         description="Manage your customer and prospect companies."
         action={
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-            <label className="sr-only" htmlFor="company-organization-id">
-              Organization ID
-            </label>
-            <input
+            <WorkspaceSelector
               id="company-organization-id"
-              className="w-72 px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-              placeholder="Organization ID"
-              value={organizationId}
-              onChange={(event) => setOrganizationId(event.target.value)}
+              className="w-72"
+              hideLabel
             />
             <button
               className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-60"

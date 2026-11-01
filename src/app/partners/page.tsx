@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
 import { useOrganization } from "@/context/OrganizationContext";
 
 type PartnerCandidateStatus = "discovered" | "researching" | "qualified" | "contacted" | "converted" | "rejected" | "archived";
@@ -103,7 +104,7 @@ async function requestJson(path: string, organizationId: string, method: "GET" |
 }
 
 export default function PartnersPage() {
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId } = useOrganization();
   const [rawInput, setRawInput] = useState(sampleInput);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [candidates, setCandidates] = useState<PartnerCandidate[]>([]);
@@ -111,6 +112,7 @@ export default function PartnersPage() {
   const [importing, setImporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
+  const [queueingSearch, setQueueingSearch] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -219,6 +221,28 @@ export default function PartnersPage() {
     }
   }
 
+  async function queuePartnerSearch() {
+    if (!organizationId) {
+      return;
+    }
+
+    setQueueingSearch(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      await requestJson("/api/agent-jobs", organizationId, "POST", {
+        type: "partner_search",
+        query: searchQuery.trim() || undefined,
+      });
+      setMessage("Queued partner search. Process it from Automation when ready.");
+    } catch (queueError) {
+      setError(queueError instanceof Error ? queueError.message : "Partner search queue failed");
+    } finally {
+      setQueueingSearch(false);
+    }
+  }
+
   async function analyzeCandidate(candidateId: string) {
     if (!organizationId) {
       return;
@@ -269,12 +293,7 @@ export default function PartnersPage() {
         title="Partnerships"
         description="Build a vendor/subcontractor partnership pipeline from CRM Command candidate research."
         action={
-          <input
-            className="w-72 max-w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white"
-            placeholder="Workspace ID"
-            value={organizationId}
-            onChange={(event) => setOrganizationId(event.target.value.trim())}
-          />
+          <WorkspaceSelector id="partners-workspace-id" className="w-72 max-w-full" hideLabel />
         }
       />
 
@@ -292,7 +311,7 @@ export default function PartnersPage() {
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
           />
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap gap-2">
             <button
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={!organizationId || searching}
@@ -300,6 +319,14 @@ export default function PartnersPage() {
               type="button"
             >
               {searching ? "Searching..." : "Search for Partners"}
+            </button>
+            <button
+              className="rounded-lg border border-indigo-200 bg-white px-4 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-900/60 dark:bg-gray-900 dark:text-indigo-300 dark:hover:bg-indigo-950/30"
+              disabled={!organizationId || queueingSearch}
+              onClick={() => void queuePartnerSearch()}
+              type="button"
+            >
+              {queueingSearch ? "Queueing..." : "Queue Search"}
             </button>
           </div>
         </div>

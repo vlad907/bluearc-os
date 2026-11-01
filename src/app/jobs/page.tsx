@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
 import { useOrganization } from "@/context/OrganizationContext";
 import { classNames } from "@/lib/utils";
 import { highlightedRecordClass, useHighlightedRecordId } from "@/lib/navigation/highlight";
@@ -161,7 +162,7 @@ function getContactName(contact: ContactOption) {
 }
 
 export default function JobsPage() {
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId } = useOrganization();
   const highlightedId = useHighlightedRecordId();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -343,30 +344,13 @@ export default function JobsPage() {
     }
   }
 
-  function handleOrganizationChange(value: string) {
-    setOrganizationId(value.trim());
-
-    if (!value.trim()) {
-      setJobs([]);
-      setCompanies([]);
-      setContacts([]);
-      setVendors([]);
-      setLeads([]);
-    }
-  }
-
   return (
     <div className="p-6 lg:p-8">
       <PageHeader
         title="Jobs"
         description="Manage job listings and track applicants."
         action={
-          <input
-            className="w-72 max-w-full px-3 py-2 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white placeholder:text-gray-400"
-            placeholder="Organization ID"
-            value={organizationId}
-            onChange={(event) => handleOrganizationChange(event.target.value)}
-          />
+          <WorkspaceSelector id="jobs-workspace-id" className="w-72 max-w-full" hideLabel />
         }
       />
 

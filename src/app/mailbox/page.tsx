@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/layout/PageHeader";
+import WorkspaceSelector from "@/components/workspace/WorkspaceSelector";
 import { useOrganization } from "@/context/OrganizationContext";
 
 type MailboxMessage = {
@@ -119,7 +120,7 @@ async function requestJson(path: string, organizationId: string, method: "GET" |
 }
 
 export default function MailboxPage() {
-  const { organizationId, setOrganizationId } = useOrganization();
+  const { organizationId } = useOrganization();
   const [threads, setThreads] = useState<MailboxThread[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
@@ -280,12 +281,7 @@ export default function MailboxPage() {
         title="Mailbox"
         description="Triage inbound replies: classify, draft suggested responses, and approve or reject them before sending."
         action={
-          <input
-            className="w-72 max-w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white"
-            placeholder="Workspace ID"
-            value={organizationId}
-            onChange={(event) => setOrganizationId(event.target.value.trim())}
-          />
+          <WorkspaceSelector id="mailbox-workspace-id" className="w-72 max-w-full" hideLabel />
         }
       />
 
@@ -299,6 +295,19 @@ export default function MailboxPage() {
               type="button"
             >
               {busy === "sync" ? "Syncing..." : "Sync Gmail"}
+            </button>
+            <button
+              className="rounded-lg border border-indigo-200 bg-white px-4 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-900/60 dark:bg-gray-900 dark:text-indigo-300 dark:hover:bg-indigo-950/30"
+              disabled={!organizationId || busy === "queue-sync"}
+              onClick={() => void runAction(
+                "queue-sync",
+                "/api/agent-jobs",
+                { type: "gmail_sync_mailbox" },
+                "Queued Gmail sync. Process it from Automation when ready.",
+              )}
+              type="button"
+            >
+              {busy === "queue-sync" ? "Queueing..." : "Queue Sync"}
             </button>
             <select
               className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
@@ -541,6 +550,23 @@ export default function MailboxPage() {
                       {busy === "suggest" ? "Generating..." : "Suggest Reply"}
                     </button>
                     <button
+                      className="rounded-lg border border-indigo-200 bg-white px-4 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-900/60 dark:bg-gray-900 dark:text-indigo-300 dark:hover:bg-indigo-950/30"
+                      disabled={!!busy}
+                      onClick={() => void runAction(
+                        "queue-suggest",
+                        "/api/agent-jobs",
+                        {
+                          type: "mailbox_suggest_reply",
+                          entityType: "email_thread",
+                          entityId: selected.id,
+                        },
+                        "Queued suggested reply. Process it from Automation when ready.",
+                      )}
+                      type="button"
+                    >
+                      {busy === "queue-suggest" ? "Queueing..." : "Queue Reply"}
+                    </button>
+                    <button
                       className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
                       disabled={!!busy || !latestInbound?.suggestedBody || latestInbound?.suggestionStatus === "approved"}
                       onClick={() => void runAction("approve", `/api/mailbox/${selected.id}/suggestion`, { action: "approve" }, "Suggestion approved.")}
@@ -571,6 +597,23 @@ export default function MailboxPage() {
                       type="button"
                     >
                       {busy === "send" ? "Sending..." : "Send Gmail"}
+                    </button>
+                    <button
+                      className="rounded-lg border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-900/60 dark:bg-gray-900 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+                      disabled={!!busy || !latestInbound?.suggestedBody}
+                      onClick={() => void runAction(
+                        "queue-send",
+                        "/api/agent-jobs",
+                        {
+                          type: "gmail_send_draft",
+                          entityType: "email_thread",
+                          entityId: selected.id,
+                        },
+                        "Queued Gmail send. Process it from Automation when ready.",
+                      )}
+                      type="button"
+                    >
+                      {busy === "queue-send" ? "Queueing..." : "Queue Send"}
                     </button>
                   </div>
                 </div>
