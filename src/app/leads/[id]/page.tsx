@@ -75,6 +75,7 @@ export default function LeadDetailPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [websiteInput, setWebsiteInput] = useState("");
 
   const load = useCallback(async () => {
     if (!organizationId || !leadId) {
@@ -85,6 +86,11 @@ export default function LeadDetailPage() {
     try {
       const payload = (await request(`/api/leads/${leadId}`, organizationId, "GET")) as { lead: LeadDetail };
       setLead(payload.lead);
+      // Seed the website field from the lead's known URL, without clobbering an edit.
+      const known = payload.lead.company?.website ?? str(payload.lead.metadata?.websiteUrl);
+      if (known) {
+        setWebsiteInput((current) => current || known);
+      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load lead");
     } finally {
@@ -98,11 +104,16 @@ export default function LeadDetailPage() {
   }, [load]);
 
   async function runResearch() {
+    const url = websiteInput.trim();
+    if (!url) {
+      setError("Enter the lead's website URL before running research.");
+      return;
+    }
     setBusy("research");
     setError(null);
     setMessage(null);
     try {
-      await request(`/api/leads/${leadId}/ingest-website`, organizationId, "POST", {});
+      await request(`/api/leads/${leadId}/ingest-website`, organizationId, "POST", { url });
       await request(`/api/leads/${leadId}/run-agent1`, organizationId, "POST", {});
       setMessage("Website ingested and Agent 1 research complete.");
       await load();
@@ -207,6 +218,14 @@ export default function LeadDetailPage() {
 
             <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
               <h3 className="mb-3 font-semibold text-gray-900 dark:text-white">Pipeline</h3>
+              <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">Website URL</label>
+              <input
+                className="mb-3 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                value={websiteInput}
+                onChange={(event) => setWebsiteInput(event.target.value)}
+                placeholder="https://company.com"
+                type="url"
+              />
               <div className="space-y-2">
                 <button
                   className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
