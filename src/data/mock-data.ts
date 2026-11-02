@@ -21,6 +21,7 @@ export const CRM_COMMAND_ITEMS: NavItem[] = [
   { id: "partners", label: "Partnerships", icon: "Users", href: "/partners" },
   { id: "mailbox", label: "Mailbox", icon: "Mail", href: "/mailbox" },
   { id: "automation", label: "Automation", icon: "Zap", href: "/automation" },
+  { id: "field-jobs", label: "Field Jobs", icon: "Truck", href: "/field-jobs" },
 ];
 
 export const KPI_DATA: KPIData[] = [
