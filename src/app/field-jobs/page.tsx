@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import PageHeader from "@/components/layout/PageHeader";
+import { estimateLaborHours } from "@/lib/fieldnation/estimator";
 import {
   DEFAULT_PRICING_CONFIG,
   recommendBid,
@@ -42,6 +43,7 @@ const inputClass =
 
 export default function FieldJobsPage() {
   const [hours, setHours] = useState("2");
+  const [scope, setScope] = useState("");
   const [driveMinutes, setDriveMinutes] = useState("20");
   const [compType, setCompType] = useState<CompensationType>("hourly");
   const [hourlyRate, setHourlyRate] = useState("65");
@@ -57,6 +59,14 @@ export default function FieldJobsPage() {
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
+  // When a job scope is pasted, estimate labor hours from it (using the typed
+  // hours as the buyer-stated floor); otherwise use the typed hours directly.
+  const estimate = useMemo(
+    () => (scope.trim() ? estimateLaborHours(scope, num(hours) || null) : null),
+    [scope, hours],
+  );
+  const effectiveHours = estimate ? estimate.finalHours : num(hours);
+
   const recommendation = useMemo(() => {
     const posted: PostedCompensation = {
       compType,
@@ -69,11 +79,12 @@ export default function FieldJobsPage() {
       ambiguous,
     };
     return recommendBid({
-      estimatedLaborHours: num(hours),
+      estimatedLaborHours: effectiveHours,
       oneWayMinutes: num(driveMinutes),
       posted,
+      forceManualReview: estimate?.requiresManualReview ?? false,
     });
-  }, [hours, driveMinutes, compType, hourlyRate, fixedAmount, blendedRate, minimumHours, travelReimbursement, prohibitsTravelCharge, ambiguous]);
+  }, [effectiveHours, estimate, driveMinutes, compType, hourlyRate, fixedAmount, blendedRate, minimumHours, travelReimbursement, prohibitsTravelCharge, ambiguous]);
 
   const { pricing } = recommendation;
   const cfg = DEFAULT_PRICING_CONFIG;
@@ -90,13 +101,37 @@ export default function FieldJobsPage() {
         <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
           <h3 className="font-semibold text-gray-900 dark:text-white">Job details</h3>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Estimated labor hours">
+            <Field label={estimate ? "Buyer-stated hours (floor)" : "Estimated labor hours"}>
               <input className={inputClass} type="number" min="0" step="0.5" value={hours} onChange={(e) => setHours(e.target.value)} />
             </Field>
             <Field label="One-way drive (min)">
               <input className={inputClass} type="number" min="0" step="5" value={driveMinutes} onChange={(e) => setDriveMinutes(e.target.value)} />
             </Field>
           </div>
+
+          <Field label="Job scope / description (optional — auto-estimates hours)">
+            <textarea
+              className={`${inputClass} min-h-20`}
+              value={scope}
+              onChange={(e) => setScope(e.target.value)}
+              placeholder="e.g. Run 6 cable drops and install 3 IP cameras"
+            />
+          </Field>
+          {estimate && (
+            <div
+              className={`rounded-lg border p-3 text-xs ${
+                estimate.requiresManualReview
+                  ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-400"
+                  : "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-400"
+              }`}
+            >
+              <span className="font-semibold">
+                {estimate.requiresManualReview ? "Manual review" : `Estimated ${estimate.finalHours}h`}
+              </span>
+              {" — "}
+              {estimate.reason}
+            </div>
+          )}
 
           <Field label="Posted compensation type">
             <select className={inputClass} value={compType} onChange={(e) => setCompType(e.target.value as CompensationType)}>
